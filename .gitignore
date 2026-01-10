@@ -1,0 +1,8 @@
+# Claude Code
+.claude/settings.local.json
+
+# OS
+.DS_Store
+
+# Transcripts (private)
+transcripts/
