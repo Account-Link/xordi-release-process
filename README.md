@@ -29,9 +29,9 @@ Release process documentation for the Xordi TikTok data collection enclave runni
   - Demonstrates the complete release process end-to-end
   - This becomes the template for generalizing later
 
-- [ ] **Remove `.well-known/attestation` gap from VERIFICATION-REPORT.md** - Not applicable to Xordi since users never directly contact the server (only Archive calls it). The 8090 metadata service already provides attestation data.
+- [x] **Remove `.well-known/attestation` gap from VERIFICATION-REPORT.md** - Not applicable to Xordi since users never directly contact the server (only Archive calls it). The 8090 metadata service already provides attestation data.
 
-- [ ] **Simplify trust boundaries diagram in VERIFICATION-REPORT.md** - Remove "Archive" and everything below the trust boundary line. Focus only on the cryptographically verified TCB.
+- [x] **Simplify trust boundaries diagram in VERIFICATION-REPORT.md** - Remove "Archive" and everything below the trust boundary line. Focus only on the cryptographically verified TCB.
 
 - [ ] **Continue scanning Telegram** for Andrew's notes/gaps - he'll drop thoughts as they occur
 
@@ -58,7 +58,7 @@ Release process documentation for the Xordi TikTok data collection enclave runni
 ### Claude
 
 - [x] Create separate repo with release docs
-- [ ] Apply doc updates (`.well-known/attestation`, trust diagram) when instructed
+- [x] Apply doc updates (`.well-known/attestation`, trust diagram) when instructed
 - [ ] Do NOT update deployment data without instruction
 
 ---

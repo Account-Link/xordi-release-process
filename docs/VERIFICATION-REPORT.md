@@ -79,7 +79,7 @@ Xordi is a TikTok data collection service (watch history, authentication) runnin
 ## Trust Boundaries Diagram
 
 ```
-                    CRYPTOGRAPHICALLY VERIFIED
+              TRUSTED COMPUTE BASE (TCB) - Attestation Covers This
     ┌─────────────────────────────────────────────────────────┐
     │                                                         │
     │   ┌─────────────────────────────────────────────────┐   │
@@ -94,6 +94,7 @@ Xordi is a TikTok data collection service (watch history, authentication) runnin
     │   │              ┌───────┴───────┐                  │   │
     │   │              │  dstack SDK   │                  │   │
     │   │              │  TDQuote      │                  │   │
+    │   │              │  :8090 meta   │                  │   │
     │   │              └───────────────┘                  │   │
     │   └─────────────────────────────────────────────────┘   │
     │                          │                              │
@@ -102,23 +103,10 @@ Xordi is a TikTok data collection service (watch history, authentication) runnin
     │                  │  (prod7/9)    │   transparency log)  │
     │                  └───────────────┘                      │
     └─────────────────────────────────────────────────────────┘
-                               │
-           ════════════════════╪════════════════════════
-                               │  TRUST BOUNDARY
-                               ▼
-                    REQUIRES TRUST / AUDIT
-    ┌─────────────────────────────────────────────────────────┐
-    │                                                         │
-    │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-    │   │   GitHub     │  │  DockerHub   │  │   Archive    │  │
-    │   │   Source     │  │   Images     │  │   (Shin)     │  │
-    │   └──────────────┘  └──────────────┘  └──────────────┘  │
-    │                                                         │
-    │   - Source code behavior claims                         │
-    │   - Build reproducibility                               │
-    │   - Upgrade transparency                                │
-    │                                                         │
-    └─────────────────────────────────────────────────────────┘
+
+    Note: Components outside the TCB (Archive, Borg Cube, etc.) are
+    excluded from this diagram. Attestation only covers what runs
+    inside the enclave. External components require separate trust.
 ```
 
 ---
@@ -145,14 +133,6 @@ Xordi is a TikTok data collection service (watch history, authentication) runnin
 **Impact:** Users cannot verify the running code matches published source.
 
 **Fix:** Implement CI/CD workflow following Hermes pattern with SHA-tagged images.
-
-### Gap 3: No `/.well-known/attestation` Endpoint
-
-**Problem:** No programmatic way for users to fetch attestation proof.
-
-**Impact:** Verification requires manual Trust Center lookup.
-
-**Fix:** Implement attestation API endpoint in Xordi enclave.
 
 ---
 
@@ -219,12 +199,11 @@ grep -r "direct_message\|inbox\|dm" src/
 
 3. **Implement CI/CD with SHA-tagged images** - Follow Hermes GitHub Actions pattern
 4. **Create release checklist** - Prescriptive process requiring transparency verification
-5. **Add attestation endpoint** - `/.well-known/attestation` for programmatic access
 
 ### Medium-Term (Full Reproducibility)
 
-6. **Achieve reproducible builds** - Pin dependencies, normalize timestamps
-7. **Document upgrade history** - On-chain log of all deployments
+5. **Achieve reproducible builds** - Pin dependencies, normalize timestamps
+6. **Document upgrade history** - On-chain log of all deployments
 
 ---
 
@@ -243,3 +222,4 @@ grep -r "direct_message\|inbox\|dm" src/
 | Date | Author | Changes |
 |------|--------|---------|
 | 2026-01-05 | LSDan | Initial report based on Trust Center attestation and spec analysis |
+| 2026-01-10 | Claude | Removed `.well-known/attestation` gap (not applicable - users never directly contact server; 8090 metadata already provides attestation). Simplified trust boundary diagram to focus on TCB only. |
