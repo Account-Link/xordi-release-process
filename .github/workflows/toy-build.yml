@@ -226,7 +226,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [summary, build-enclave]
     if: |
-      github.event_name == 'push' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.summary.outputs.all_success == 'true'
     environment: staging
 
