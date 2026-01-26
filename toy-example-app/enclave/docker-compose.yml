@@ -1,0 +1,41 @@
+# dstack Deployment Configuration
+#
+# This file is used by dstack/Phala Cloud to deploy the enclave.
+# The compose hash is included in the TEE attestation, creating a
+# verifiable link between source code and running enclave.
+#
+# IMPORTANT: Any change to this file changes the compose hash,
+# which requires re-attestation and transparency log update.
+
+version: "3.8"
+
+services:
+  enclave:
+    # Image tag is updated by CI/CD with the git commit SHA
+    image: ghcr.io/xordi/toy-example-enclave:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      # These are injected by dstack secrets management
+      - MOCK_API_URL=${MOCK_API_URL}
+      - MOCK_API_TOKEN=${MOCK_API_TOKEN}
+      - SIGNING_KEY=${SIGNING_KEY}
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# dstack-specific configuration
+# These settings control TEE deployment behavior
+x-dstack:
+  # Deploy to prod9 cluster with Base KMS
+  cluster: prod9
+  kms: base
+  # Resource allocation
+  resources:
+    memory: 512Mi
+    cpu: 0.5
