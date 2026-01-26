@@ -63,6 +63,6 @@ export async function getWatchHistory(): Promise<WatchHistoryResponse> {
 }
 
 // NOTE: There is intentionally NO function for fetching direct messages.
-// The enclave has the token that COULD access /api/direct_messages,
+// The enclave has the token that COULD access the sensitive DM endpoint,
 // but we never wrote the code to do so. This is the security guarantee
 // that attestation proves.
