@@ -15,10 +15,13 @@ services:
     image: ghcr.io/xordi/toy-example-enclave:latest
     ports:
       - "8080:8080"
+    volumes:
+      # dstack socket for TEE attestation
+      - /var/run/dstack.sock:/var/run/dstack.sock
     environment:
       - NODE_ENV=production
       - PORT=8080
-      # These are injected by dstack secrets management
+      # These are injected via CLI -e flags or secrets
       - MOCK_API_URL=${MOCK_API_URL}
       - MOCK_API_TOKEN=${MOCK_API_TOKEN}
       - SIGNING_KEY=${SIGNING_KEY}

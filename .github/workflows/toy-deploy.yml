@@ -105,30 +105,47 @@ jobs:
           node-version: '20'
 
       - name: Install Phala CLI
-        run: npm install -g @anthropic/phala-cli
+        run: npm install -g phala
+
+      - name: Authenticate with Phala Cloud
+        env:
+          PHALA_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+        run: |
+          # Login using API key (non-interactive)
+          echo "$PHALA_API_KEY" | phala login --manual
 
       - name: Deploy to Phala Cloud
         id: deploy
         env:
-          PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+          MOCK_API_URL: ${{ secrets.TOY_MOCK_API_URL }}
+          MOCK_API_TOKEN: ${{ secrets.TOY_MOCK_API_TOKEN }}
+          SIGNING_KEY: ${{ secrets.TOY_SIGNING_KEY }}
         run: |
-          echo "Deploying enclave to Phala Cloud (prod9, Base KMS)..."
+          echo "Deploying enclave to Phala Cloud..."
 
-          # For new deployments, use cvms create
-          # For upgrades, use cvms upgrade with existing app ID
+          # Check if we have an existing deployment to upgrade
           if [ -n "${{ secrets.TOY_EXAMPLE_APP_ID }}" ]; then
-            phala cvms upgrade \
-              --app-id ${{ secrets.TOY_EXAMPLE_APP_ID }} \
-              --compose ./deploy/docker-compose.yml \
-              2>&1 | tee deploy.log
-          else
-            phala cvms create \
-              --name toy-example-enclave-${{ inputs.environment }} \
-              --compose ./deploy/docker-compose.yml \
-              2>&1 | tee deploy.log
+            echo "Upgrading existing deployment: ${{ secrets.TOY_EXAMPLE_APP_ID }}"
+            # For upgrades, we need to delete and recreate (or use update if available)
+            phala cvms delete toy-example-${{ inputs.environment }} --force || true
           fi
 
+          # Deploy with environment variables
+          phala deploy \
+            -c ./deploy/docker-compose.yml \
+            -n toy-example-${{ inputs.environment }} \
+            -e MOCK_API_URL="$MOCK_API_URL" \
+            -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
+            -e SIGNING_KEY="$SIGNING_KEY" \
+            2>&1 | tee deploy.log
+
+          # Extract app info from deploy output
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Get deployment info
+        run: |
+          echo "Getting deployment status..."
+          phala cvms get toy-example-${{ inputs.environment }} --json | tee deployment-info.json || true
 
       - name: Wait for attestation
         run: |
