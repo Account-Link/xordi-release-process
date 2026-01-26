@@ -31,23 +31,28 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  ENCLAVE_IMAGE: ghcr.io/${{ github.repository_owner }}/toy-example-enclave
-  MOCK_API_IMAGE: ghcr.io/${{ github.repository_owner }}/toy-example-mock-api
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
       compose_hash: ${{ steps.hash.outputs.compose_hash }}
+      enclave_image: ${{ steps.vars.outputs.enclave_image }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set image names
+        id: vars
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "enclave_image=ghcr.io/${OWNER_LC}/toy-example-enclave" >> $GITHUB_OUTPUT
+
       - name: Update docker-compose with image tag
         run: |
           cd toy-example-app/enclave
-          sed -i "s|image:.*toy-example-enclave.*|image: ${{ env.ENCLAVE_IMAGE }}:${{ inputs.image_tag }}|g" docker-compose.yml
+          sed -i "s|image:.*toy-example-enclave.*|image: ${{ steps.vars.outputs.enclave_image }}:${{ inputs.image_tag }}|g" docker-compose.yml
           cat docker-compose.yml
 
       - name: Calculate compose hash
@@ -183,7 +188,7 @@ jobs:
 
           ### Deployment Details
 
-          - **Image:** `${{ env.ENCLAVE_IMAGE }}:${{ inputs.image_tag }}`
+          - **Image:** `${{ needs.prepare.outputs.enclave_image }}:${{ inputs.image_tag }}`
           - **Compose Hash:** `${{ needs.prepare.outputs.compose_hash }}`
           - **Environment:** ${{ inputs.environment }}
 
