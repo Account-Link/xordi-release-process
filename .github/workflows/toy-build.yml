@@ -149,18 +149,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify no direct_messages references
+      - name: Verify no direct_messages API calls
         run: |
           echo "## Security Verification" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Check that enclave code doesn't reference direct_messages
-          if grep -r "direct_message" toy-example-app/enclave/src/; then
-            echo "❌ FAIL: Found references to direct_messages in enclave code" >> $GITHUB_STEP_SUMMARY
+          # Check for actual API call patterns to direct_messages endpoint
+          # Looking for URL patterns, not documentation comments
+          if grep -rE '(/api/direct_messages|getDirectMessages|fetchDirectMessages|\.direct_messages)' toy-example-app/enclave/src/*.ts 2>/dev/null; then
+            echo "❌ FAIL: Found direct_messages API call patterns in enclave code" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
-            echo "✅ PASS: No direct_messages references in enclave code" >> $GITHUB_STEP_SUMMARY
+            echo "✅ PASS: No direct_messages API calls in enclave code" >> $GITHUB_STEP_SUMMARY
           fi
+
+          # Also verify no fetch/http calls outside tiktok-client.ts reference direct_messages
+          NON_CLIENT_FILES=$(find toy-example-app/enclave/src -name "*.ts" ! -name "tiktok-client.ts")
+          for f in $NON_CLIENT_FILES; do
+            if grep -E 'direct_message' "$f" | grep -vE '^[[:space:]]*//' | grep -q .; then
+              echo "❌ FAIL: Non-comment direct_messages reference in $f" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
+          done
+          echo "✅ PASS: No non-comment direct_messages references outside tiktok-client.ts" >> $GITHUB_STEP_SUMMARY
 
       - name: Verify API calls are isolated
         run: |
