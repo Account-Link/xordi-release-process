@@ -1,35 +1,128 @@
 # Toy Example App
 
-A simplified dstack application demonstrating the complete TEE release process end-to-end.
+**Branch:** `feat/toy-example-app`
+
+A simplified dstack application demonstrating the complete TEE release process end-to-end. This branch implements a toy example that proves an enclave can receive full API credentials but only access safe endpoints - with hardware attestation and on-chain transparency logging as evidence.
+
+## Purpose
+
+This toy app demonstrates:
+- **Selective API access**: Enclave receives credentials for both safe and sensitive endpoints, but code only calls safe endpoints
+- **Hardware attestation**: Intel TDX proves exactly what code is running
+- **On-chain transparency**: Every deployment logged to Base blockchain via KMS
+- **Verifiable builds**: Docker images tagged with commit SHA for reproducibility
+
+---
+
+## Release Checklist
+
+**Purpose:** Prescriptive release process ensuring transparency and attestation for every deployment.
+
+**Key Principle:** A deployment is NOT complete until transparency logging is verified.
+
+---
+
+### Pre-Release Checklist
+
+#### 1. Code Preparation
+
+- [x] All changes committed to `feat/toy-example-app` branch
+- [x] Record the commit SHA: `8736a98a6a8d8c4162b8cc981b73a4e138497069`
+- [x] Verify CI passes
+- [x] No secrets in source code (secrets injected via Phala Cloud)
+
+#### 2. Docker Image Build
+
+- [x] Build image with SHA tag (automated via GitHub Actions)
+- [x] Push to GHCR: `ghcr.io/account-link/toy-example-enclave:8736a98`
+- [x] Record image digest: `sha256:73f9eaae5374cc9d86de57e160ae1c777224f4e841d8de25cdb3bc2ab09043d7`
+
+#### 3. Pre-Deployment Verification
+
+- [x] Verify `docker-compose.yml` uses correct image tag
+- [x] Verify KMS configuration is Base (not Pha)
+- [x] Verify no sensitive environment variables are hardcoded
+
+---
+
+### Deployment Checklist
+
+#### 4. Deploy to Phala Cloud
+
+**CRITICAL: Using Base on-chain KMS for transparency logging**
+
+- [x] Deployment command executed successfully
+- [x] Record CVM ID: `54c37bd6-297b-4371-8eb8-e6bf6f983336`
+- [x] Record App ID: `04bf9758873466bb2bd8f85621858d99e33f58fd`
+
+#### 5. Post-Deployment Health Check
+
+- [x] Service is responding: https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network/health
+- [x] Basic functionality verified (watch-history endpoint works)
+- [x] No error logs in deployment
+
+---
+
+### Transparency Verification (MANDATORY)
+
+**A deployment is NOT complete until these steps are verified.**
+
+#### 6. Trust Center Verification
+
+- [ ] Visit Trust Center: https://trust.phala.com/app/04bf9758873466bb2bd8f85621858d99e33f58fd
+- [ ] Verification status shows "Completed"
+- [ ] All data objects verified (App, KMS, Gateway)
+- [ ] Attestation timestamp is after deployment time
+
+#### 7. On-Chain Transparency Log (REQUIRED)
+
+- [x] **Using Base KMS**: Compose hash updates logged on Base blockchain
+- [x] KMS Contract: `0x2f83172A49584C017F2B256F0FB2Dca14126Ba9C` (Base mainnet)
+- [ ] Verify upgrade event on Base blockchain explorer
+
+#### 8. Chain of Trust Record
+
+| Item | Value |
+|------|-------|
+| Git Commit SHA | `8736a98a6a8d8c4162b8cc981b73a4e138497069` |
+| Docker Image Tag | `ghcr.io/account-link/toy-example-enclave:8736a98` |
+| Docker Image Digest | `sha256:73f9eaae5374cc9d86de57e160ae1c777224f4e841d8de25cdb3bc2ab09043d7` |
+| App ID | `04bf9758873466bb2bd8f85621858d99e33f58fd` |
+| CVM ID | `54c37bd6-297b-4371-8eb8-e6bf6f983336` |
+| Trust Center URL | https://trust.phala.com/app/04bf9758873466bb2bd8f85621858d99e33f58fd |
+| On-Chain TX Hash | _pending verification_ |
+| Deployment Timestamp | 2026-01-27T01:34:05Z |
+| KMS | Base (kms-base-prod9) |
+| TEEPod | prod9 (US-WEST-1) |
+
+---
+
+### Post-Release Checklist
+
+#### 9. Update Documentation
+
+- [x] Verification documentation created (`docs/VERIFICATION.md`)
+- [ ] Create GitHub Release with attestation proof attached
+- [x] Tutorial and architecture docs created
+
+#### 10. Code Audit Verification
+
+- [x] `grep -r "direct_message" enclave/src/` returns nothing
+- [x] All external API calls isolated to `tiktok-client.ts`
+- [x] CI verifies no direct_messages API calls on every build
+
+---
 
 ## Live Deployment
 
-- **Enclave**: https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network
-- **Attestation**: https://04bf9758873466bb2bd8f85621858d99e33f58fd-8090.dstack-base-prod9.phala.network
-- **Mock API**: https://toy.dstack.info
-- **Dashboard**: https://cloud.phala.com/dashboard/cvms/54c37bd6-297b-4371-8eb8-e6bf6f983336
-- **KMS**: Base (on-chain transparency logging)
+| Endpoint | URL |
+|----------|-----|
+| Enclave | https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network |
+| Attestation | https://04bf9758873466bb2bd8f85621858d99e33f58fd-8090.dstack-base-prod9.phala.network |
+| Mock API | https://toy.dstack.info |
+| Dashboard | https://cloud.phala.com/dashboard/cvms/54c37bd6-297b-4371-8eb8-e6bf6f983336 |
 
-## What This Proves
-
-The enclave receives full API credentials that **could** access sensitive data (DMs), but the code **only** calls safe endpoints (watch history). This constraint is provable through:
-
-1. **Code Audit**: `grep -r "direct_message" enclave/src/` returns nothing
-2. **TEE Attestation**: Hardware proves this exact code is running
-3. **Transparency Log**: Every deployment logged on Base contract
-
-## Quick Start
-
-```bash
-# Verify the running enclave
-./scripts/verify-attestation.sh https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network
-
-# Test locally
-cd mock-api && npm install && npm run dev  # Terminal 1
-cd enclave && npm install && npm run dev   # Terminal 2
-curl http://localhost:8080/health
-curl http://localhost:8080/watch-history
-```
+---
 
 ## Architecture
 
@@ -51,6 +144,25 @@ curl http://localhost:8080/watch-history
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## Quick Verification
+
+```bash
+# Verify the running enclave matches source
+./scripts/verify-attestation.sh https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network
+
+# Verify no direct_messages code in enclave
+grep -r "direct_message" enclave/src/
+# Should return NOTHING
+
+# Test the enclave endpoints
+curl https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network/health
+curl https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network/watch-history
+```
+
+---
+
 ## Documentation
 
 - [docs/VERIFICATION.md](docs/VERIFICATION.md) - How to verify attestation
@@ -60,121 +172,9 @@ curl http://localhost:8080/watch-history
 
 ---
 
-## Release Process Checklist
+## Remaining Work
 
-### Must Have Requirements
-
-- [x] **Mock TikTok API** (external service, publicly hosted)
-  - [x] `GET /api/watch_history` - Returns fake watch history (SAFE)
-  - [x] `GET /api/direct_messages` - Returns fake DMs (SENSITIVE)
-  - [x] Both endpoints require same auth token
-  - Deployed at: https://toy.dstack.info
-
-- [x] **TEE Enclave Application** (Node.js/TypeScript)
-  - [x] Receives full API credentials
-  - [x] Only calls `watch_history` endpoint in code
-  - [x] Runs on dstack (prod9) with Intel TDX attestation
-  - [x] Exposes metadata on port 8090
-  - App ID: `04bf9758873466bb2bd8f85621858d99e33f58fd`
-
-- [x] **Reproducible Docker Build**
-  - [x] Tagged commits produce consistent images
-  - [x] Multi-stage build with pinned dependencies
-  - [x] Published to GHCR: `ghcr.io/account-link/toy-example-enclave`
-
-- [x] **Complete CI/CD Pipeline** (GitHub Actions)
-  - [x] Build and push Docker images on push
-  - [x] Verify no direct_messages calls in code
-  - [x] Auto-deploy to Phala Cloud dstack (prod9, Base KMS)
-  - [x] Update Base KMS transparency log (every compose hash update logged on-chain)
-
-- [x] **Verification Documentation**
-  - [x] How to verify running code matches source
-  - [x] How to audit that code only calls safe endpoints
-  - [x] Trust boundary diagram
-
-- [x] **Tutorial Documentation**
-  - [x] Step-by-step guide for newcomers
-  - [x] Explains each component and why it matters
-
-### Should Have Requirements
-
-- [x] **User signup count attestation**
-  - [x] Enclave signs count of "users"
-  - [x] Proves count without exposing identities
-  - [x] Demonstrates retrospective audit capability
-
-- [x] **Automated verification script**
-  - [x] Fetches attestation from enclave (port 8090)
-  - [x] Compares against expected compose hash
-  - [x] Reports pass/fail
-  - Script: `scripts/verify-attestation.sh`
-
-- [x] **Red team documentation**
-  - [x] "Here's how you'd verify we can't steal DMs"
-  - Doc: `docs/RED-TEAM.md`
-
-- [x] **Health check endpoint**
-  - [x] `GET /health` returns service status
-
-### Deployment Info
-
-| Item | Value |
-|------|-------|
-| CVM ID | `54c37bd6-297b-4371-8eb8-e6bf6f983336` |
-| App ID | `04bf9758873466bb2bd8f85621858d99e33f58fd` |
-| TEEPod | prod9 (US-WEST-1) |
-| KMS | Base (kms-base-prod9) |
-| Base Image | dstack-0.5.4.1 |
-| Instance Type | tdx.small |
-
-### Remaining Work
-
-- [ ] **Production domain**: Set up friendly URL for enclave (e.g., `enclave.toy.dstack.info`)
-- [ ] **Merge to main**: Create PR and merge `feat/toy-example-app` branch
-
----
-
-## Files
-
-```
-toy-example-app/
-├── mock-api/                 # External mock TikTok API
-│   ├── src/server.ts         # Express server with both endpoints
-│   ├── Dockerfile
-│   └── package.json
-├── enclave/                  # TEE application
-│   ├── src/
-│   │   ├── index.ts          # Main HTTP server
-│   │   ├── tiktok-client.ts  # API client (ONLY calls watch_history)
-│   │   ├── signup-counter.ts # Signed counter for attestation
-│   │   └── config.ts         # Environment config
-│   ├── Dockerfile            # Multi-stage reproducible build
-│   ├── docker-compose.yml    # dstack deployment config
-│   └── package.json
-├── scripts/
-│   └── verify-attestation.sh # Automated verification
-├── docs/
-│   ├── VERIFICATION.md       # Verification guide
-│   ├── TUTORIAL.md           # Newcomer tutorial
-│   ├── ARCHITECTURE.md       # System design
-│   └── RED-TEAM.md           # Security audit guide
-└── README.md                 # This file
-```
-
-## CI/CD Workflows
-
-- `.github/workflows/toy-build.yml` - Build, verify, and deploy on push
-- `.github/workflows/toy-deploy.yml` - Manual deployment workflow
-
-## Security Verification
-
-```bash
-# Verify no direct_messages code in enclave
-grep -r "direct_message" enclave/src/
-# Should return NOTHING (except comments explaining what NOT to do)
-
-# Verify all API calls are in tiktok-client.ts
-grep -r "fetch\(" enclave/src/
-# Should only show tiktok-client.ts
-```
+- [ ] Verify Trust Center shows completed attestation
+- [ ] Verify on-chain TX hash for Base KMS transparency log
+- [ ] Set up friendly domain (e.g., `enclave.toy.dstack.info`)
+- [ ] Create PR and merge to `main`
