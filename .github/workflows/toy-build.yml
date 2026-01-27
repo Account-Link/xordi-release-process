@@ -506,18 +506,14 @@ jobs:
             NODE_ID="$NODE_ID_PROD9"
           fi
 
-          # Generate cluster-specific app ID using a deterministic hash
-          # This ensures different clusters get different app IDs even with same compose
-          CLUSTER_SALT="${{ matrix.cluster }}"
-          CUSTOM_APP_ID=$(echo -n "${CLUSTER_SALT}" | sha256sum | cut -c1-40)
-
           # Use --cvm-id to upgrade existing CVM, or create new if doesn't exist
           if [ "${{ steps.check_cvm.outputs.cvm_exists }}" = "true" ]; then
             echo "Upgrading existing CVM on ${{ matrix.cluster }}..."
             DEPLOY_ARGS="--cvm-id $CVM_NAME --wait"
           else
             echo "Creating new CVM on ${{ matrix.cluster }}..."
-            DEPLOY_ARGS="-n $CVM_NAME --node-id $NODE_ID --custom-app-id $CUSTOM_APP_ID"
+            # Use cluster name as nonce to ensure unique app IDs per cluster
+            DEPLOY_ARGS="-n $CVM_NAME --node-id $NODE_ID --nonce ${{ matrix.cluster }}"
           fi
 
           # Deploy/upgrade with Base KMS for on-chain transparency logging
