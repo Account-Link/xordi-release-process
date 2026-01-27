@@ -69,10 +69,10 @@ This toy app demonstrates:
 
 #### 6. Trust Center Verification
 
-- [ ] Visit Trust Center: https://trust.phala.com/app/04bf9758873466bb2bd8f85621858d99e33f58fd
-- [ ] Verification status shows "Completed"
-- [ ] All data objects verified (App, KMS, Gateway)
-- [ ] Attestation timestamp is after deployment time
+- [x] Visit Trust Center: https://trust.phala.com/app/04bf9758873466bb2bd8f85621858d99e33f58fd
+- [x] Verification status shows "Completed"
+- [x] All 30 data objects verified (App, KMS, Gateway)
+- [x] Attestation timestamp (01:40:01 UTC) is after deployment time (01:34:05 UTC)
 
 #### 7. On-Chain Transparency Log (REQUIRED)
 
@@ -174,7 +174,7 @@ curl https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.pha
 
 ## Remaining Work
 
-- [ ] Verify Trust Center shows completed attestation
+- [x] Verify Trust Center shows completed attestation
 - [ ] Verify on-chain TX hash for Base KMS transparency log
 - [ ] Set up friendly domain (e.g., `enclave.toy.dstack.info`)
 - [ ] Create PR and merge to `main`
