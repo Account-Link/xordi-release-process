@@ -3,7 +3,7 @@
 // These values are injected at build time via Docker build args.
 // At runtime, they provide traceability back to the source code.
 
-export const VERSION = '1.2.5';
+export const VERSION = '1.2.6';
 
 // Git SHA of the commit this build was created from
 // Injected via: docker build --build-arg BUILD_SHA=$(git rev-parse HEAD)
