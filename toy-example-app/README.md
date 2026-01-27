@@ -4,10 +4,11 @@ A simplified dstack application demonstrating the complete TEE release process e
 
 ## Live Deployment
 
-- **Enclave**: https://7d522b2e14fda28d2a7f4e2ff74702b679d385f6-8080.dstack-pha-prod9.phala.network
-- **Attestation**: https://7d522b2e14fda28d2a7f4e2ff74702b679d385f6-8090.dstack-pha-prod9.phala.network
+- **Enclave**: https://307f9654b0122eef13947b70e3452778da83cd3f-8080.dstack-base-prod9.phala.network
+- **Attestation**: https://307f9654b0122eef13947b70e3452778da83cd3f-8090.dstack-base-prod9.phala.network
 - **Mock API**: https://toy.dstack.info
-- **Dashboard**: https://cloud.phala.com/dashboard/cvms/ad0e3fbf-8fb7-4fd6-b7fb-190aba361315
+- **Dashboard**: https://cloud.phala.com/dashboard/cvms/f86f12fa-a7d8-4da0-b6dc-91da811c2134
+- **KMS**: Base (on-chain transparency logging)
 
 ## What This Proves
 
@@ -21,7 +22,7 @@ The enclave receives full API credentials that **could** access sensitive data (
 
 ```bash
 # Verify the running enclave
-./scripts/verify-attestation.sh https://7d522b2e14fda28d2a7f4e2ff74702b679d385f6-8080.dstack-pha-prod9.phala.network
+./scripts/verify-attestation.sh https://307f9654b0122eef13947b70e3452778da83cd3f-8080.dstack-base-prod9.phala.network
 
 # Test locally
 cd mock-api && npm install && npm run dev  # Terminal 1
@@ -74,7 +75,7 @@ curl http://localhost:8080/watch-history
   - [x] Only calls `watch_history` endpoint in code
   - [x] Runs on dstack (prod9) with Intel TDX attestation
   - [x] Exposes metadata on port 8090
-  - App ID: `7d522b2e14fda28d2a7f4e2ff74702b679d385f6`
+  - App ID: `307f9654b0122eef13947b70e3452778da83cd3f`
 
 - [x] **Reproducible Docker Build**
   - [x] Tagged commits produce consistent images
@@ -84,8 +85,8 @@ curl http://localhost:8080/watch-history
 - [x] **Complete CI/CD Pipeline** (GitHub Actions)
   - [x] Build and push Docker images on push
   - [x] Verify no direct_messages calls in code
-  - [x] Auto-deploy to Phala Cloud dstack (prod9)
-  - [ ] Update Base KMS transparency log (pending: requires Base contract setup)
+  - [x] Auto-deploy to Phala Cloud dstack (prod9, Base KMS)
+  - [x] Update Base KMS transparency log (every compose hash update logged on-chain)
 
 - [x] **Verification Documentation**
   - [x] How to verify running code matches source
@@ -120,15 +121,15 @@ curl http://localhost:8080/watch-history
 
 | Item | Value |
 |------|-------|
-| CVM ID | `ad0e3fbf-8fb7-4fd6-b7fb-190aba361315` |
-| App ID | `7d522b2e14fda28d2a7f4e2ff74702b679d385f6` |
+| CVM ID | `f86f12fa-a7d8-4da0-b6dc-91da811c2134` |
+| App ID | `307f9654b0122eef13947b70e3452778da83cd3f` |
 | TEEPod | prod9 (US-WEST-1) |
-| Base Image | dstack-dev-0.5.5 |
+| KMS | Base (kms-base-prod9) |
+| Base Image | dstack-0.5.4.1 |
 | Instance Type | tdx.small |
 
 ### Remaining Work
 
-- [ ] **Base KMS Transparency Log**: Configure on-chain logging for compose hash updates
 - [ ] **Production domain**: Set up friendly URL for enclave (e.g., `enclave.toy.dstack.info`)
 - [ ] **Merge to main**: Create PR and merge `feat/toy-example-app` branch
 

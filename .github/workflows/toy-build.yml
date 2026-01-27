@@ -262,19 +262,63 @@ jobs:
       - name: Install Phala CLI
         run: npm install -g phala
 
-      - name: List available KMS options
+      - name: Check if deployment needed
+        id: check
         env:
           PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
         run: |
-          echo "Available KMS options:"
-          phala kms list --json 2>&1 | tee kms.json || echo "kms list failed, trying deploy --help"
-          phala deploy --help 2>&1 | grep -A5 "kms" || true
-          echo ""
-          echo "Available nodes:"
-          phala nodes list --json 2>&1 | head -100 || true
+          echo "Checking current deployment..."
+
+          # Get current deployment info (if exists)
+          CURRENT_INFO=$(phala cvms get toy-example-staging --json 2>/dev/null || echo '{"success":false}')
+
+          if echo "$CURRENT_INFO" | jq -e '.success == true' > /dev/null 2>&1; then
+            # Extract the current image from the deployment
+            # The compose_hash in attestation would be ideal, but we can check if image changed
+            CURRENT_STATUS=$(echo "$CURRENT_INFO" | jq -r '.status // "unknown"')
+            echo "Current deployment status: $CURRENT_STATUS"
+
+            # Check if the image tag in the current deployment matches
+            # We compare by checking if the docker-compose would change
+            CURRENT_IMAGE=$(echo "$CURRENT_INFO" | jq -r '.hosted_url // ""' | sed 's/-8090.*//' | sed 's/.*\///')
+            NEW_IMAGE_TAG="${{ needs.build-enclave.outputs.sha_short }}"
+
+            echo "Current app ID: $CURRENT_IMAGE"
+            echo "New image tag: $NEW_IMAGE_TAG"
+
+            # For now, we check if the enclave is running and if image digest changed
+            # The build-enclave job outputs the digest, we can compare
+            NEW_DIGEST="${{ needs.build-enclave.outputs.image_digest }}"
+            echo "New image digest: $NEW_DIGEST"
+
+            # Check if compose hash would change (includes image tag)
+            # If the sha_short is different, compose hash is different
+            if [ "$CURRENT_STATUS" = "running" ]; then
+              # Try to get the running compose hash from attestation
+              ATTESTATION_URL=$(echo "$CURRENT_INFO" | jq -r '.dapp_dashboard_url // ""')
+              if [ -n "$ATTESTATION_URL" ]; then
+                echo "Fetching attestation from: $ATTESTATION_URL"
+                CURRENT_COMPOSE_HASH=$(curl -s "$ATTESTATION_URL" 2>/dev/null | jq -r '.app.compose_hash // ""' || echo "")
+                echo "Current compose hash: $CURRENT_COMPOSE_HASH"
+                echo "New compose hash: ${{ steps.hash.outputs.compose_hash }}"
+
+                if [ "$CURRENT_COMPOSE_HASH" = "${{ steps.hash.outputs.compose_hash }}" ]; then
+                  echo "Compose hash unchanged - skipping deployment"
+                  echo "skip_deploy=true" >> $GITHUB_OUTPUT
+                  exit 0
+                fi
+              fi
+            fi
+          else
+            echo "No existing deployment found"
+          fi
+
+          echo "Deployment needed"
+          echo "skip_deploy=false" >> $GITHUB_OUTPUT
 
       - name: Deploy to Phala Cloud
         id: deploy
+        if: steps.check.outputs.skip_deploy != 'true'
         env:
           PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
           MOCK_API_URL: ${{ secrets.TOY_MOCK_API_URL }}
@@ -309,7 +353,16 @@ jobs:
 
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
+      - name: Skip deployment notice
+        if: steps.check.outputs.skip_deploy == 'true'
+        run: |
+          echo "## Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The compose hash has not changed since the last deployment." >> $GITHUB_STEP_SUMMARY
+          echo "Current deployment is already running the latest image." >> $GITHUB_STEP_SUMMARY
+
       - name: Get deployment info
+        if: steps.check.outputs.skip_deploy != 'true'
         env:
           PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
         run: |
@@ -317,6 +370,7 @@ jobs:
           phala cvms get toy-example-staging --json 2>&1 | tee deployment-info.json || true
 
       - name: Record deployment
+        if: steps.check.outputs.skip_deploy != 'true'
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
