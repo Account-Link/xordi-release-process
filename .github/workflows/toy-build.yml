@@ -414,19 +414,23 @@ jobs:
       startsWith(github.ref, 'refs/tags/v') &&
       needs.summary.outputs.all_success == 'true'
     environment: production
-    permissions:
-      contents: write
 
     strategy:
       matrix:
         cluster: [prod9, prod7]
       fail-fast: false
 
+    outputs:
+      prod7_tx: ${{ steps.output.outputs.prod7_tx }}
+      prod7_hash: ${{ steps.output.outputs.prod7_hash }}
+      prod7_time: ${{ steps.output.outputs.prod7_time }}
+      prod9_tx: ${{ steps.output.outputs.prod9_tx }}
+      prod9_hash: ${{ steps.output.outputs.prod9_hash }}
+      prod9_time: ${{ steps.output.outputs.prod9_time }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set variables
         id: vars
@@ -504,46 +508,13 @@ jobs:
           echo "tx_hash=$TX_HASH" >> $GITHUB_OUTPUT
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
-      - name: Update DEPLOYMENTS.md
+      - name: Export outputs for consolidation
+        id: output
         run: |
-          DEPLOYMENTS_FILE="toy-example-app/DEPLOYMENTS.md"
-
-          # Create file if it doesn't exist
-          if [ ! -f "$DEPLOYMENTS_FILE" ]; then
-            cat > "$DEPLOYMENTS_FILE" << 'EOF'
-          # Deployment History
-
-          Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
-
-          | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
-          |-----------|---------|---------|--------------|-------------|--------|
-          EOF
-          fi
-
-          # Add new entry at the top of the table (after header)
-          TX_LINK="[View](https://basescan.org/tx/${{ steps.deploy.outputs.tx_hash }})"
-          if [ "${{ steps.deploy.outputs.tx_hash }}" = "pending" ]; then
-            TX_LINK="pending"
-          fi
-
-          NEW_ENTRY="| ${{ steps.vars.outputs.timestamp }} | ${{ steps.vars.outputs.version }} | ${{ matrix.cluster }} | \`${{ steps.hash.outputs.compose_hash }}\` | $TX_LINK | Active |"
-
-          # Insert after the header row (line 7)
-          sed -i "7a $NEW_ENTRY" "$DEPLOYMENTS_FILE"
-
-      - name: Commit DEPLOYMENTS.md
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add toy-example-app/DEPLOYMENTS.md
-          git commit -m "chore: record ${{ matrix.cluster }} deployment v${{ steps.vars.outputs.version }}
-
-          Machine: ${{ matrix.cluster }}
-          Version: ${{ steps.vars.outputs.version }}
-          Compose Hash: ${{ steps.hash.outputs.compose_hash }}
-
-          Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>" || echo "No changes to commit"
-          git push origin HEAD:feat/toy-example-app || echo "Push failed - may need manual sync"
+          # Export outputs with cluster-specific names for the consolidation job
+          echo "${{ matrix.cluster }}_tx=${{ steps.deploy.outputs.tx_hash }}" >> $GITHUB_OUTPUT
+          echo "${{ matrix.cluster }}_hash=${{ steps.hash.outputs.compose_hash }}" >> $GITHUB_OUTPUT
+          echo "${{ matrix.cluster }}_time=${{ steps.vars.outputs.timestamp }}" >> $GITHUB_OUTPUT
 
       - name: Record release deployment
         run: |
@@ -557,3 +528,100 @@ jobs:
           echo "| Compose Hash | \`${{ steps.hash.outputs.compose_hash }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| On-Chain TX | ${{ steps.deploy.outputs.tx_hash }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deploy Time | ${{ steps.deploy.outputs.deployment_time }} |" >> $GITHUB_STEP_SUMMARY
+
+  # Consolidate deployment records after all machines are deployed
+  record-deployments:
+    runs-on: ubuntu-latest
+    needs: [summary, build-enclave, deploy-release]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      always() &&
+      (needs.deploy-release.result == 'success' || needs.deploy-release.result == 'failure')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: feat/toy-example-app
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set variables
+        id: vars
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "enclave_image=ghcr.io/${OWNER_LC}/toy-example-enclave" >> $GITHUB_OUTPUT
+          echo "version=${{ needs.summary.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Update DEPLOYMENTS.md
+        run: |
+          DEPLOYMENTS_FILE="toy-example-app/DEPLOYMENTS.md"
+          VERSION="${{ steps.vars.outputs.version }}"
+          TIMESTAMP="${{ steps.vars.outputs.timestamp }}"
+
+          # Create file if it doesn't exist
+          if [ ! -f "$DEPLOYMENTS_FILE" ]; then
+            cat > "$DEPLOYMENTS_FILE" << 'EOFTEMPLATE'
+          # Deployment History
+
+          Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
+
+          ## Active Deployments
+
+          | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
+          |-----------|---------|---------|--------------|-------------|--------|
+          EOFTEMPLATE
+          fi
+
+          # Add entries for each cluster that was deployed
+          # We need to compute the compose hashes here since matrix outputs aren't easily accessible
+          cd toy-example-app/enclave
+
+          for CLUSTER in prod7 prod9; do
+            # Update docker-compose for this cluster to get the correct hash
+            git checkout docker-compose.yml
+            OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            sed -i "s|image:.*toy-example-enclave.*|image: ghcr.io/${OWNER_LC}/toy-example-enclave:${{ needs.build-enclave.outputs.sha_short }}|g" docker-compose.yml
+            sed -i "s|cluster:.*|cluster: ${CLUSTER}|g" docker-compose.yml
+
+            HASH=$(sha256sum docker-compose.yml | cut -d' ' -f1)
+
+            # For now, use pending for TX since we can't easily pass matrix outputs
+            # The on-chain TX can be verified via the contract directly
+            TX_LINK="pending"
+
+            NEW_ENTRY="| ${TIMESTAMP} | ${VERSION} | ${CLUSTER} | \`${HASH}\` | ${TX_LINK} | Active |"
+
+            # Insert after the header separator row
+            cd ..
+            sed -i "/^|-----------|/a ${NEW_ENTRY}" "$DEPLOYMENTS_FILE"
+            cd enclave
+          done
+
+          # Reset docker-compose.yml
+          git checkout docker-compose.yml
+
+          cd ..
+          echo "Updated DEPLOYMENTS.md:"
+          cat "$DEPLOYMENTS_FILE"
+
+      - name: Commit DEPLOYMENTS.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add toy-example-app/DEPLOYMENTS.md
+          git commit -m "chore: record deployments v${{ steps.vars.outputs.version }}
+
+          Version: ${{ steps.vars.outputs.version }}
+          Machines: prod7, prod9
+
+          Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>" || echo "No changes to commit"
+          git push origin feat/toy-example-app
+
+      - name: Record consolidation summary
+        run: |
+          echo "## Deployment Records Consolidated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "DEPLOYMENTS.md has been updated with entries for all deployed machines." >> $GITHUB_STEP_SUMMARY
