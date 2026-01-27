@@ -262,6 +262,15 @@ jobs:
       - name: Install Phala CLI
         run: npm install -g phala
 
+      - name: List available nodes and KMS
+        env:
+          PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+        run: |
+          echo "Available nodes:"
+          phala nodes list --json 2>&1 | tee nodes.json || true
+          echo ""
+          echo "Looking for Base KMS nodes..."
+
       - name: Deploy to Phala Cloud
         id: deploy
         env:
@@ -271,18 +280,21 @@ jobs:
           SIGNING_KEY: ${{ secrets.TOY_SIGNING_KEY }}
           GHCR_USERNAME: ${{ github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
+          PRIVATE_KEY: ${{ secrets.TOY_DEPLOYER_PRIVATE_KEY }}
         run: |
-          echo "Deploying enclave to Phala Cloud..."
+          echo "Deploying enclave to Phala Cloud with Base KMS..."
 
           cd toy-example-app/enclave
 
           # Delete existing deployment if any (for clean redeploy)
           phala cvms delete toy-example-staging --force 2>/dev/null || true
 
-          # Deploy with environment variables including GHCR credentials
+          # Deploy with Base KMS for on-chain transparency logging
+          # The --kms-id flag specifies which KMS to use (Base chain)
           phala deploy \
             -c docker-compose.yml \
             -n toy-example-staging \
+            --kms-id base \
             -e MOCK_API_URL="$MOCK_API_URL" \
             -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
             -e SIGNING_KEY="$SIGNING_KEY" \
