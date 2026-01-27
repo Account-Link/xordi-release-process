@@ -1,6 +1,6 @@
 {
   "name": "toy-example-enclave",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "TEE Enclave application demonstrating secure API access patterns",
   "main": "dist/index.js",
   "scripts": {
