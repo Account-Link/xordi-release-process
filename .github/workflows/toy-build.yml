@@ -419,7 +419,11 @@ jobs:
 
     strategy:
       matrix:
-        cluster: [prod9, prod7]
+        include:
+          - cluster: prod7
+            node_id_secret: TOY_NODE_ID_PROD7
+          - cluster: prod9
+            node_id_secret: TOY_NODE_ID_PROD9
       fail-fast: false
 
     outputs:
@@ -442,17 +446,14 @@ jobs:
           echo "version=${{ needs.summary.outputs.version }}" >> $GITHUB_OUTPUT
           echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
-      - name: Update docker-compose with image and cluster
+      - name: Update docker-compose with image tag
         run: |
           cd toy-example-app/enclave
 
-          # Update image tag
+          # Update image tag only - cluster is selected via --node-id
           sed -i "s|image:.*toy-example-enclave.*|image: ${{ steps.vars.outputs.enclave_image }}:${{ needs.build-enclave.outputs.sha_short }}|g" docker-compose.yml
 
-          # Update cluster
-          sed -i "s|cluster:.*|cluster: ${{ matrix.cluster }}|g" docker-compose.yml
-
-          echo "Updated docker-compose.yml for ${{ matrix.cluster }}:"
+          echo "Updated docker-compose.yml:"
           cat docker-compose.yml
 
       - name: Calculate compose hash
@@ -491,10 +492,19 @@ jobs:
           GHCR_USERNAME: ${{ github.repository_owner }}
           GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
           PRIVATE_KEY: ${{ secrets.TOY_DEPLOYER_PRIVATE_KEY }}
+          NODE_ID_PROD7: ${{ secrets.TOY_NODE_ID_PROD7 }}
+          NODE_ID_PROD9: ${{ secrets.TOY_NODE_ID_PROD9 }}
         run: |
           cd toy-example-app/enclave
 
           CVM_NAME="toy-example-${{ matrix.cluster }}"
+
+          # Select node ID based on cluster
+          if [ "${{ matrix.cluster }}" = "prod7" ]; then
+            NODE_ID="$NODE_ID_PROD7"
+          else
+            NODE_ID="$NODE_ID_PROD9"
+          fi
 
           # Use --cvm-id to upgrade existing CVM, or create new if doesn't exist
           if [ "${{ steps.check_cvm.outputs.cvm_exists }}" = "true" ]; then
@@ -502,7 +512,7 @@ jobs:
             DEPLOY_ARGS="--cvm-id $CVM_NAME --wait"
           else
             echo "Creating new CVM on ${{ matrix.cluster }}..."
-            DEPLOY_ARGS="-n $CVM_NAME"
+            DEPLOY_ARGS="-n $CVM_NAME --node-id $NODE_ID"
           fi
 
           # Deploy/upgrade with Base KMS for on-chain transparency logging
@@ -597,15 +607,13 @@ jobs:
             } > "$DEPLOYMENTS_FILE"
           fi
 
-          # Add entries for each cluster that was deployed
+          # Calculate compose hash once - same for all clusters since we use --node-id
+          git -C "${ENCLAVE_DIR}" checkout docker-compose.yml
+          sed -i "s|image:.*toy-example-enclave.*|image: ghcr.io/${OWNER_LC}/toy-example-enclave:${SHA_SHORT}|g" "${ENCLAVE_DIR}/docker-compose.yml"
+          HASH=$(sha256sum "${ENCLAVE_DIR}/docker-compose.yml" | cut -d' ' -f1)
+
+          # Add entries for each cluster - same hash proves identical code
           for CLUSTER in prod7 prod9; do
-            # Reset docker-compose and update for this cluster to get the correct hash
-            git -C "${ENCLAVE_DIR}" checkout docker-compose.yml
-            sed -i "s|image:.*toy-example-enclave.*|image: ghcr.io/${OWNER_LC}/toy-example-enclave:${SHA_SHORT}|g" "${ENCLAVE_DIR}/docker-compose.yml"
-            sed -i "s|cluster:.*|cluster: ${CLUSTER}|g" "${ENCLAVE_DIR}/docker-compose.yml"
-
-            HASH=$(sha256sum "${ENCLAVE_DIR}/docker-compose.yml" | cut -d' ' -f1)
-
             # For now, use pending for TX since we can't easily pass matrix outputs
             # The on-chain TX can be verified via the contract directly
             TX_LINK="pending"

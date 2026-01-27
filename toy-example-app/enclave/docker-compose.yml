@@ -35,10 +35,11 @@ services:
 # dstack-specific configuration
 # These settings control TEE deployment behavior
 x-dstack:
-  # Deploy to prod9 cluster with Base KMS
-  cluster: prod9
+  # KMS for on-chain transparency logging
   kms: base
   # Resource allocation
   resources:
     memory: 512Mi
     cpu: 0.5
+  # Note: Cluster/node selection is done via --node-id in CI/CD
+  # to ensure same compose hash across all deployments
