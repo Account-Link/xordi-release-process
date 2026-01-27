@@ -6,6 +6,8 @@ Auto-generated deployment log. Each entry represents a verified deployment to Ph
 
 | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
 |-----------|---------|---------|--------------|-------------|--------|
+| 2026-01-27T22:27:48Z | 1.2.11 | prod9 | `689eabacd107e7006ce90b63cbbd154147c8574d6555a8141c72082acfc35b31` | [View](https://basescan.org/tx/0x1d6a35c4da0a4f5bed5ef11f2d9086c6e55f8c8aaf02dda64f15a137dc2828ba) | Active |
+| 2026-01-27T22:27:48Z | 1.2.11 | prod5 | `689eabacd107e7006ce90b63cbbd154147c8574d6555a8141c72082acfc35b31` | [View](https://basescan.org/tx/0x5d540e8c1ee25949b63f4fcf63ae4567160756dd483c0d779953754ac5af5843) | Active |
 | 2026-01-27T22:13:17Z | 1.2.10 | prod9 | `933c4112f698dced8d1f1e9d895139f8beb28f280e112eb98e2b8cb1f4eb3b0a` | pending | Active |
 | 2026-01-27T22:13:17Z | 1.2.10 | prod5 | `933c4112f698dced8d1f1e9d895139f8beb28f280e112eb98e2b8cb1f4eb3b0a` | pending | Active |
 | 2026-01-27T19:57:10Z | 1.2.9 | prod9 | `714f18f783b42c59ef5d21a3c54ca4fddcfcb262235cff81e90a10d2811b7764` | pending | Active |
