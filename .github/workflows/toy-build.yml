@@ -557,36 +557,37 @@ jobs:
 
       - name: Update DEPLOYMENTS.md
         run: |
-          DEPLOYMENTS_FILE="toy-example-app/DEPLOYMENTS.md"
+          # Use absolute paths to avoid directory navigation issues
+          ROOT_DIR="${GITHUB_WORKSPACE}"
+          DEPLOYMENTS_FILE="${ROOT_DIR}/toy-example-app/DEPLOYMENTS.md"
+          ENCLAVE_DIR="${ROOT_DIR}/toy-example-app/enclave"
           VERSION="${{ steps.vars.outputs.version }}"
           TIMESTAMP="${{ steps.vars.outputs.timestamp }}"
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SHA_SHORT="${{ needs.build-enclave.outputs.sha_short }}"
 
           # Create file if it doesn't exist
           if [ ! -f "$DEPLOYMENTS_FILE" ]; then
             cat > "$DEPLOYMENTS_FILE" << 'EOFTEMPLATE'
-          # Deployment History
+# Deployment History
 
-          Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
+Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
 
-          ## Active Deployments
+## Active Deployments
 
-          | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
-          |-----------|---------|---------|--------------|-------------|--------|
-          EOFTEMPLATE
+| Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
+|-----------|---------|---------|--------------|-------------|--------|
+EOFTEMPLATE
           fi
 
           # Add entries for each cluster that was deployed
-          # We need to compute the compose hashes here since matrix outputs aren't easily accessible
-          cd toy-example-app/enclave
-
           for CLUSTER in prod7 prod9; do
-            # Update docker-compose for this cluster to get the correct hash
-            git checkout docker-compose.yml
-            OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            sed -i "s|image:.*toy-example-enclave.*|image: ghcr.io/${OWNER_LC}/toy-example-enclave:${{ needs.build-enclave.outputs.sha_short }}|g" docker-compose.yml
-            sed -i "s|cluster:.*|cluster: ${CLUSTER}|g" docker-compose.yml
+            # Reset docker-compose and update for this cluster to get the correct hash
+            git -C "${ENCLAVE_DIR}" checkout docker-compose.yml
+            sed -i "s|image:.*toy-example-enclave.*|image: ghcr.io/${OWNER_LC}/toy-example-enclave:${SHA_SHORT}|g" "${ENCLAVE_DIR}/docker-compose.yml"
+            sed -i "s|cluster:.*|cluster: ${CLUSTER}|g" "${ENCLAVE_DIR}/docker-compose.yml"
 
-            HASH=$(sha256sum docker-compose.yml | cut -d' ' -f1)
+            HASH=$(sha256sum "${ENCLAVE_DIR}/docker-compose.yml" | cut -d' ' -f1)
 
             # For now, use pending for TX since we can't easily pass matrix outputs
             # The on-chain TX can be verified via the contract directly
@@ -595,15 +596,12 @@ jobs:
             NEW_ENTRY="| ${TIMESTAMP} | ${VERSION} | ${CLUSTER} | \`${HASH}\` | ${TX_LINK} | Active |"
 
             # Insert after the header separator row
-            cd ..
             sed -i "/^|-----------|/a ${NEW_ENTRY}" "$DEPLOYMENTS_FILE"
-            cd enclave
           done
 
           # Reset docker-compose.yml
-          git checkout docker-compose.yml
+          git -C "${ENCLAVE_DIR}" checkout docker-compose.yml
 
-          cd ..
           echo "Updated DEPLOYMENTS.md:"
           cat "$DEPLOYMENTS_FILE"
 
