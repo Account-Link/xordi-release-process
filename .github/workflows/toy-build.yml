@@ -568,16 +568,16 @@ jobs:
 
           # Create file if it doesn't exist
           if [ ! -f "$DEPLOYMENTS_FILE" ]; then
-            cat > "$DEPLOYMENTS_FILE" << 'EOFTEMPLATE'
-# Deployment History
-
-Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
-
-## Active Deployments
-
-| Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
-|-----------|---------|---------|--------------|-------------|--------|
-EOFTEMPLATE
+            {
+              echo "# Deployment History"
+              echo ""
+              echo "Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS."
+              echo ""
+              echo "## Active Deployments"
+              echo ""
+              echo "| Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |"
+              echo "|-----------|---------|---------|--------------|-------------|--------|"
+            } > "$DEPLOYMENTS_FILE"
           fi
 
           # Add entries for each cluster that was deployed
