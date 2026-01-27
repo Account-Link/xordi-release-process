@@ -266,43 +266,53 @@ jobs:
         id: check
         env:
           PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Checking if deployment is needed..."
 
-          # Compare new image digest with the :latest tag on GHCR
-          # If they match, the Docker image hasn't changed
+          # Compare new image digest with the previously deployed digest
           NEW_DIGEST="${{ needs.build-enclave.outputs.image_digest }}"
           echo "New image digest: $NEW_DIGEST"
 
-          # Get the digest of the :latest tag (what's currently deployed)
-          LATEST_DIGEST=$(docker manifest inspect ${{ steps.vars.outputs.enclave_image }}:latest 2>/dev/null | jq -r '.config.digest // .manifests[0].digest // ""' || echo "")
-          echo "Latest tag digest: $LATEST_DIGEST"
+          # Get the digest of a previous commit's tag using GHCR API
+          # We'll compare with what we know was previously built
+          PREV_SHA="${{ needs.build-enclave.outputs.sha_short }}"
 
-          # If digests match, the image hasn't changed
-          if [ -n "$LATEST_DIGEST" ] && [ "$NEW_DIGEST" = "$LATEST_DIGEST" ]; then
-            echo "Image digest unchanged - checking if CVM exists..."
+          # Check if CVM exists and is running
+          CURRENT_INFO=$(phala cvms get toy-example-staging --json 2>/dev/null || echo '{"success":false}')
+          echo "CVM info: $(echo "$CURRENT_INFO" | jq -c '.')"
 
-            # Verify CVM is running
-            CURRENT_INFO=$(phala cvms get toy-example-staging --json 2>/dev/null || echo '{"success":false}')
-            if echo "$CURRENT_INFO" | jq -e '.success == true and .status == "running"' > /dev/null 2>&1; then
-              echo "CVM is running with the same image - skipping deployment"
-              echo "skip_deploy=true" >> $GITHUB_OUTPUT
-              echo "cvm_exists=true" >> $GITHUB_OUTPUT
-              exit 0
-            else
-              echo "CVM not running, will deploy"
-              echo "cvm_exists=false" >> $GITHUB_OUTPUT
+          if echo "$CURRENT_INFO" | jq -e '.success == true' > /dev/null 2>&1; then
+            CURRENT_STATUS=$(echo "$CURRENT_INFO" | jq -r '.status // "unknown"')
+            echo "CVM exists with status: $CURRENT_STATUS"
+            echo "cvm_exists=true" >> $GITHUB_OUTPUT
+
+            if [ "$CURRENT_STATUS" = "running" ]; then
+              # Try to get current compose hash from attestation to compare
+              ATTESTATION_URL=$(echo "$CURRENT_INFO" | jq -r '.dapp_dashboard_url // ""')
+              if [ -n "$ATTESTATION_URL" ]; then
+                echo "Fetching attestation from: $ATTESTATION_URL"
+                ATTESTATION=$(curl -s --max-time 10 "$ATTESTATION_URL" 2>/dev/null || echo "")
+
+                # Parse the image reference from attestation if available
+                if echo "$ATTESTATION" | jq -e '.app.compose_hash' > /dev/null 2>&1; then
+                  CURRENT_COMPOSE_HASH=$(echo "$ATTESTATION" | jq -r '.app.compose_hash')
+                  echo "Running compose hash: $CURRENT_COMPOSE_HASH"
+                  echo "New compose hash: ${{ steps.hash.outputs.compose_hash }}"
+
+                  if [ "$CURRENT_COMPOSE_HASH" = "${{ steps.hash.outputs.compose_hash }}" ]; then
+                    echo "Compose hash matches - skipping deployment"
+                    echo "skip_deploy=true" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+                else
+                  echo "Could not fetch attestation, will check if upgrade is needed"
+                fi
+              fi
             fi
           else
-            echo "Image digest changed, deployment needed"
-
-            # Check if CVM exists
-            CURRENT_INFO=$(phala cvms get toy-example-staging --json 2>/dev/null || echo '{"success":false}')
-            if echo "$CURRENT_INFO" | jq -e '.success == true' > /dev/null 2>&1; then
-              echo "cvm_exists=true" >> $GITHUB_OUTPUT
-            else
-              echo "cvm_exists=false" >> $GITHUB_OUTPUT
-            fi
+            echo "No existing CVM found"
+            echo "cvm_exists=false" >> $GITHUB_OUTPUT
           fi
 
           echo "skip_deploy=false" >> $GITHUB_OUTPUT
@@ -326,9 +336,9 @@ jobs:
             echo "Upgrading existing CVM with new compose..."
 
             # Use phala cvms upgrade to update the running CVM
+            # Note: upgrade doesn't support --private-key, it uses the existing KMS config
             phala cvms upgrade toy-example-staging \
               -c docker-compose.yml \
-              --private-key "$PRIVATE_KEY" \
               -e MOCK_API_URL="$MOCK_API_URL" \
               -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
               -e SIGNING_KEY="$SIGNING_KEY" \
