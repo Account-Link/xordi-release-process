@@ -271,46 +271,46 @@ jobs:
 
           # Get current deployment info (if exists)
           CURRENT_INFO=$(phala cvms get toy-example-staging --json 2>/dev/null || echo '{"success":false}')
+          echo "$CURRENT_INFO" | jq . || echo "Failed to parse JSON"
 
           if echo "$CURRENT_INFO" | jq -e '.success == true' > /dev/null 2>&1; then
-            # Extract the current image from the deployment
-            # The compose_hash in attestation would be ideal, but we can check if image changed
             CURRENT_STATUS=$(echo "$CURRENT_INFO" | jq -r '.status // "unknown"')
             echo "Current deployment status: $CURRENT_STATUS"
+            echo "cvm_exists=true" >> $GITHUB_OUTPUT
 
-            # Check if the image tag in the current deployment matches
-            # We compare by checking if the docker-compose would change
-            CURRENT_IMAGE=$(echo "$CURRENT_INFO" | jq -r '.hosted_url // ""' | sed 's/-8090.*//' | sed 's/.*\///')
-            NEW_IMAGE_TAG="${{ needs.build-enclave.outputs.sha_short }}"
-
-            echo "Current app ID: $CURRENT_IMAGE"
-            echo "New image tag: $NEW_IMAGE_TAG"
-
-            # For now, we check if the enclave is running and if image digest changed
-            # The build-enclave job outputs the digest, we can compare
-            NEW_DIGEST="${{ needs.build-enclave.outputs.image_digest }}"
-            echo "New image digest: $NEW_DIGEST"
-
-            # Check if compose hash would change (includes image tag)
-            # If the sha_short is different, compose hash is different
             if [ "$CURRENT_STATUS" = "running" ]; then
               # Try to get the running compose hash from attestation
               ATTESTATION_URL=$(echo "$CURRENT_INFO" | jq -r '.dapp_dashboard_url // ""')
               if [ -n "$ATTESTATION_URL" ]; then
                 echo "Fetching attestation from: $ATTESTATION_URL"
-                CURRENT_COMPOSE_HASH=$(curl -s "$ATTESTATION_URL" 2>/dev/null | jq -r '.app.compose_hash // ""' || echo "")
-                echo "Current compose hash: $CURRENT_COMPOSE_HASH"
-                echo "New compose hash: ${{ steps.hash.outputs.compose_hash }}"
 
-                if [ "$CURRENT_COMPOSE_HASH" = "${{ steps.hash.outputs.compose_hash }}" ]; then
-                  echo "Compose hash unchanged - skipping deployment"
-                  echo "skip_deploy=true" >> $GITHUB_OUTPUT
-                  exit 0
+                # The attestation endpoint returns JSON - fetch and parse carefully
+                ATTESTATION_RESPONSE=$(curl -s --max-time 10 "$ATTESTATION_URL" 2>/dev/null || echo "")
+                echo "Response preview: $(echo "$ATTESTATION_RESPONSE" | head -c 200)"
+
+                # Check if response is valid JSON
+                if echo "$ATTESTATION_RESPONSE" | jq -e '.app.compose_hash' > /dev/null 2>&1; then
+                  CURRENT_COMPOSE_HASH=$(echo "$ATTESTATION_RESPONSE" | jq -r '.app.compose_hash')
+                  echo "Current compose hash: $CURRENT_COMPOSE_HASH"
+                  echo "New compose hash: ${{ steps.hash.outputs.compose_hash }}"
+
+                  if [ "$CURRENT_COMPOSE_HASH" = "${{ steps.hash.outputs.compose_hash }}" ]; then
+                    echo "Compose hash unchanged - skipping deployment"
+                    echo "skip_deploy=true" >> $GITHUB_OUTPUT
+                    exit 0
+                  else
+                    echo "Compose hash changed - upgrade needed"
+                  fi
+                else
+                  echo "Could not parse attestation response, will redeploy"
                 fi
               fi
+            else
+              echo "CVM not running (status: $CURRENT_STATUS), will redeploy"
             fi
           else
             echo "No existing deployment found"
+            echo "cvm_exists=false" >> $GITHUB_OUTPUT
           fi
 
           echo "Deployment needed"
@@ -328,28 +328,40 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
           PRIVATE_KEY: ${{ secrets.TOY_DEPLOYER_PRIVATE_KEY }}
         run: |
-          echo "Deploying enclave to Phala Cloud with Base KMS..."
-
           cd toy-example-app/enclave
 
-          # Delete existing deployment if any (for clean redeploy)
-          phala cvms delete toy-example-staging --force 2>/dev/null || true
+          # Check if CVM exists and use upgrade instead of deploy
+          if [ "${{ steps.check.outputs.cvm_exists }}" = "true" ]; then
+            echo "Upgrading existing CVM with new compose..."
 
-          # Deploy with Base KMS for on-chain transparency logging
-          # Use --kms flag (--kms-id is deprecated) to specify Base chain KMS
-          # Pass private key explicitly for on-chain KMS transactions
-          phala deploy \
-            -c docker-compose.yml \
-            -n toy-example-staging \
-            --kms base \
-            --private-key "$PRIVATE_KEY" \
-            -e MOCK_API_URL="$MOCK_API_URL" \
-            -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
-            -e SIGNING_KEY="$SIGNING_KEY" \
-            -e DSTACK_DOCKER_REGISTRY="ghcr.io" \
-            -e DSTACK_DOCKER_USERNAME="$GHCR_USERNAME" \
-            -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
-            2>&1 | tee deploy.log
+            # Use phala cvms upgrade to update the running CVM
+            phala cvms upgrade toy-example-staging \
+              -c docker-compose.yml \
+              --private-key "$PRIVATE_KEY" \
+              -e MOCK_API_URL="$MOCK_API_URL" \
+              -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
+              -e SIGNING_KEY="$SIGNING_KEY" \
+              -e DSTACK_DOCKER_REGISTRY="ghcr.io" \
+              -e DSTACK_DOCKER_USERNAME="$GHCR_USERNAME" \
+              -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
+              2>&1 | tee deploy.log
+          else
+            echo "Deploying new CVM to Phala Cloud with Base KMS..."
+
+            # Deploy with Base KMS for on-chain transparency logging
+            phala deploy \
+              -c docker-compose.yml \
+              -n toy-example-staging \
+              --kms base \
+              --private-key "$PRIVATE_KEY" \
+              -e MOCK_API_URL="$MOCK_API_URL" \
+              -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
+              -e SIGNING_KEY="$SIGNING_KEY" \
+              -e DSTACK_DOCKER_REGISTRY="ghcr.io" \
+              -e DSTACK_DOCKER_USERNAME="$GHCR_USERNAME" \
+              -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
+              2>&1 | tee deploy.log
+          fi
 
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
