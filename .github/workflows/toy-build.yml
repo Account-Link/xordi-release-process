@@ -28,11 +28,49 @@ on:
         required: false
         default: false
         type: boolean
+      cleanup_cvms:
+        description: 'Delete CVMs before deploy (comma-separated names, or "all" for prod7,prod9,staging)'
+        required: false
+        default: ''
+        type: string
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.cleanup_cvms != ''
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Phala CLI
+        run: npm install -g phala
+
+      - name: Delete CVMs
+        env:
+          PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+        run: |
+          CVMS="${{ github.event.inputs.cleanup_cvms }}"
+          if [ "$CVMS" = "all" ]; then
+            CVMS="toy-example-prod7,toy-example-prod9,toy-example-staging"
+          fi
+
+          IFS=',' read -ra CVM_LIST <<< "$CVMS"
+          for CVM in "${CVM_LIST[@]}"; do
+            CVM=$(echo "$CVM" | xargs)
+            echo "Deleting CVM: $CVM"
+            phala cvms delete "$CVM" --force 2>&1 || echo "Failed to delete $CVM (may not exist)"
+          done
+
+      - name: Summary
+        run: |
+          echo "## CVMs Deleted" >> $GITHUB_STEP_SUMMARY
+          echo "Deleted: ${{ github.event.inputs.cleanup_cvms }}" >> $GITHUB_STEP_SUMMARY
+
   build-mock-api:
     runs-on: ubuntu-latest
     permissions:
