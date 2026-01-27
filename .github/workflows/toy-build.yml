@@ -269,18 +269,26 @@ jobs:
           MOCK_API_URL: ${{ secrets.TOY_MOCK_API_URL }}
           MOCK_API_TOKEN: ${{ secrets.TOY_MOCK_API_TOKEN }}
           SIGNING_KEY: ${{ secrets.TOY_SIGNING_KEY }}
+          GHCR_USERNAME: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
         run: |
           echo "Deploying enclave to Phala Cloud..."
 
           cd toy-example-app/enclave
 
-          # Deploy with environment variables
+          # Delete existing deployment if any (for clean redeploy)
+          phala cvms delete toy-example-staging --force 2>/dev/null || true
+
+          # Deploy with environment variables including GHCR credentials
           phala deploy \
             -c docker-compose.yml \
             -n toy-example-staging \
             -e MOCK_API_URL="$MOCK_API_URL" \
             -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
             -e SIGNING_KEY="$SIGNING_KEY" \
+            -e DSTACK_DOCKER_REGISTRY="ghcr.io" \
+            -e DSTACK_DOCKER_USERNAME="$GHCR_USERNAME" \
+            -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
             2>&1 | tee deploy.log
 
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
