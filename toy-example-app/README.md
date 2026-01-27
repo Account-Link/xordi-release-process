@@ -4,10 +4,10 @@ A simplified dstack application demonstrating the complete TEE release process e
 
 ## Live Deployment
 
-- **Enclave**: https://307f9654b0122eef13947b70e3452778da83cd3f-8080.dstack-base-prod9.phala.network
-- **Attestation**: https://307f9654b0122eef13947b70e3452778da83cd3f-8090.dstack-base-prod9.phala.network
+- **Enclave**: https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network
+- **Attestation**: https://04bf9758873466bb2bd8f85621858d99e33f58fd-8090.dstack-base-prod9.phala.network
 - **Mock API**: https://toy.dstack.info
-- **Dashboard**: https://cloud.phala.com/dashboard/cvms/f86f12fa-a7d8-4da0-b6dc-91da811c2134
+- **Dashboard**: https://cloud.phala.com/dashboard/cvms/54c37bd6-297b-4371-8eb8-e6bf6f983336
 - **KMS**: Base (on-chain transparency logging)
 
 ## What This Proves
@@ -22,7 +22,7 @@ The enclave receives full API credentials that **could** access sensitive data (
 
 ```bash
 # Verify the running enclave
-./scripts/verify-attestation.sh https://307f9654b0122eef13947b70e3452778da83cd3f-8080.dstack-base-prod9.phala.network
+./scripts/verify-attestation.sh https://04bf9758873466bb2bd8f85621858d99e33f58fd-8080.dstack-base-prod9.phala.network
 
 # Test locally
 cd mock-api && npm install && npm run dev  # Terminal 1
@@ -75,7 +75,7 @@ curl http://localhost:8080/watch-history
   - [x] Only calls `watch_history` endpoint in code
   - [x] Runs on dstack (prod9) with Intel TDX attestation
   - [x] Exposes metadata on port 8090
-  - App ID: `307f9654b0122eef13947b70e3452778da83cd3f`
+  - App ID: `04bf9758873466bb2bd8f85621858d99e33f58fd`
 
 - [x] **Reproducible Docker Build**
   - [x] Tagged commits produce consistent images
@@ -121,8 +121,8 @@ curl http://localhost:8080/watch-history
 
 | Item | Value |
 |------|-------|
-| CVM ID | `f86f12fa-a7d8-4da0-b6dc-91da811c2134` |
-| App ID | `307f9654b0122eef13947b70e3452778da83cd3f` |
+| CVM ID | `54c37bd6-297b-4371-8eb8-e6bf6f983336` |
+| App ID | `04bf9758873466bb2bd8f85621858d99e33f58fd` |
 | TEEPod | prod9 (US-WEST-1) |
 | KMS | Base (kms-base-prod9) |
 | Base Image | dstack-0.5.4.1 |
