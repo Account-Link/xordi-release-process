@@ -293,10 +293,12 @@ jobs:
 
           # Deploy with Base KMS for on-chain transparency logging
           # Use --kms flag (--kms-id is deprecated) to specify Base chain KMS
+          # Pass private key explicitly for on-chain KMS transactions
           phala deploy \
             -c docker-compose.yml \
             -n toy-example-staging \
             --kms base \
+            --private-key "$PRIVATE_KEY" \
             -e MOCK_API_URL="$MOCK_API_URL" \
             -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
             -e SIGNING_KEY="$SIGNING_KEY" \
