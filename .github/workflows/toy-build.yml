@@ -354,19 +354,21 @@ jobs:
         run: |
           cd toy-example-app/enclave
 
-          # Delete existing CVM if it exists (for clean redeploy)
+          CVM_NAME="toy-example-staging"
+
+          # Use --cvm-id to upgrade existing CVM, or create new if doesn't exist
           if [ "${{ steps.check.outputs.cvm_exists }}" = "true" ]; then
-            echo "Deleting existing CVM for clean redeploy..."
-            phala cvms delete toy-example-staging --force 2>&1 || echo "Delete failed or CVM doesn't exist"
-            sleep 5  # Wait for deletion to propagate
+            echo "Upgrading existing CVM..."
+            DEPLOY_ARGS="--cvm-id $CVM_NAME --wait"
+          else
+            echo "Creating new CVM..."
+            DEPLOY_ARGS="-n $CVM_NAME"
           fi
 
-          echo "Deploying CVM to Phala Cloud with Base KMS..."
-
-          # Deploy with Base KMS for on-chain transparency logging
+          # Deploy/upgrade with Base KMS for on-chain transparency logging
           phala deploy \
             -c docker-compose.yml \
-            -n toy-example-staging \
+            $DEPLOY_ARGS \
             --kms base \
             --private-key "$PRIVATE_KEY" \
             -e MOCK_API_URL="$MOCK_API_URL" \
@@ -467,6 +469,18 @@ jobs:
       - name: Install Phala CLI
         run: npm install -g phala
 
+      - name: Check if CVM exists
+        id: check_cvm
+        env:
+          PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+        run: |
+          CVM_NAME="toy-example-${{ matrix.cluster }}"
+          if phala cvms get "$CVM_NAME" --json 2>/dev/null | jq -e '.success == true' > /dev/null 2>&1; then
+            echo "cvm_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "cvm_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy to ${{ matrix.cluster }}
         id: deploy
         env:
@@ -482,16 +496,19 @@ jobs:
 
           CVM_NAME="toy-example-${{ matrix.cluster }}"
 
-          # Delete existing CVM if it exists
-          echo "Cleaning up existing CVM..."
-          phala cvms delete "$CVM_NAME" --force 2>&1 || echo "No existing CVM to delete"
-          sleep 5
+          # Use --cvm-id to upgrade existing CVM, or create new if doesn't exist
+          if [ "${{ steps.check_cvm.outputs.cvm_exists }}" = "true" ]; then
+            echo "Upgrading existing CVM on ${{ matrix.cluster }}..."
+            DEPLOY_ARGS="--cvm-id $CVM_NAME --wait"
+          else
+            echo "Creating new CVM on ${{ matrix.cluster }}..."
+            DEPLOY_ARGS="-n $CVM_NAME"
+          fi
 
-          echo "Deploying to ${{ matrix.cluster }} with Base KMS..."
-
+          # Deploy/upgrade with Base KMS for on-chain transparency logging
           phala deploy \
             -c docker-compose.yml \
-            -n "$CVM_NAME" \
+            $DEPLOY_ARGS \
             --kms base \
             --private-key "$PRIVATE_KEY" \
             -e MOCK_API_URL="$MOCK_API_URL" \
