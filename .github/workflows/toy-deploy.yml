@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag to deploy (e.g., abc1234)'
+        description: 'Image tag to deploy (e.g., abc1234 or 1.2.0)'
         required: true
         type: string
       environment:
@@ -23,10 +23,19 @@ on:
         options:
           - staging
           - production
+      cluster:
+        description: 'Phala Cloud cluster to deploy to'
+        required: true
+        default: 'prod9'
+        type: choice
+        options:
+          - prod9
+          - prod7
+          - both
       deploy_mock_api:
         description: 'Also deploy mock API'
         required: false
-        default: true
+        default: false
         type: boolean
 
 env:

@@ -3,8 +3,14 @@
 # Multi-stage build for reproducibility
 # The same source code should produce identical images across builds
 #
-# Build: docker build -t toy-example-enclave .
-# Run:   docker run -p 8080:8080 -e MOCK_API_URL=... -e MOCK_API_TOKEN=... toy-example-enclave
+# Build:
+#   docker build -t toy-example-enclave \
+#     --build-arg BUILD_SHA=$(git rev-parse HEAD) \
+#     --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+#     .
+#
+# Run:
+#   docker run -p 8080:8080 -e MOCK_API_URL=... -e MOCK_API_TOKEN=... toy-example-enclave
 
 # Stage 1: Build
 FROM node:20-alpine AS builder
@@ -23,10 +29,17 @@ RUN npm run build
 # Stage 2: Production
 FROM node:20-alpine
 
+# Build arguments for version tracking
+ARG BUILD_SHA=dev
+ARG BUILD_TIME=unknown
+ARG ENVIRONMENT=production
+
 # Add labels for traceability
 LABEL org.opencontainers.image.title="Toy Example Enclave"
 LABEL org.opencontainers.image.description="TEE application demonstrating secure API access patterns"
 LABEL org.opencontainers.image.vendor="Xordi Team"
+LABEL org.opencontainers.image.revision="${BUILD_SHA}"
+LABEL org.opencontainers.image.created="${BUILD_TIME}"
 
 WORKDIR /app
 
@@ -49,6 +62,11 @@ EXPOSE 8080
 # Environment defaults
 ENV NODE_ENV=production
 ENV PORT=8080
+
+# Version tracking (from build args)
+ENV BUILD_SHA=${BUILD_SHA}
+ENV BUILD_TIME=${BUILD_TIME}
+ENV ENVIRONMENT=${ENVIRONMENT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

@@ -13,6 +13,7 @@ import express, { Request, Response } from 'express';
 import { config } from './config';
 import { getWatchHistory, TikTokApiError } from './tiktok-client';
 import { incrementSignup, getSignedCount } from './signup-counter';
+import { VERSION, getVersionInfo } from './version';
 
 const app = express();
 app.use(express.json());
@@ -23,6 +24,28 @@ app.get('/health', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'toy-example-enclave',
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Version endpoint - returns build metadata for traceability
+app.get('/version', async (_req: Request, res: Response) => {
+  const versionInfo = getVersionInfo();
+
+  // Try to fetch compose hash from dstack metadata service
+  let composeHash = 'unavailable';
+  try {
+    const response = await fetch('http://localhost:8090/compose-hash');
+    if (response.ok) {
+      const data = await response.text();
+      composeHash = data.trim();
+    }
+  } catch {
+    // Metadata service not available (e.g., running locally)
+  }
+
+  res.json({
+    ...versionInfo,
+    composeHash,
   });
 });
 
@@ -73,10 +96,11 @@ app.get('/signup-count', (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     name: 'Toy Example Enclave',
-    version: '1.0.0',
+    version: VERSION,
     description: 'TEE application demonstrating secure API access patterns',
     endpoints: {
       '/health': 'GET - Health check',
+      '/version': 'GET - Version and build metadata',
       '/watch-history': 'GET - Fetch watch history from TikTok API (SAFE)',
       '/signup': 'POST - Record a signup',
       '/signup-count': 'GET - Get signed signup count',
@@ -90,15 +114,19 @@ app.get('/', (_req: Request, res: Response) => {
 
 // Start server
 app.listen(config.port, () => {
+  const versionInfo = getVersionInfo();
   console.log('='.repeat(60));
-  console.log('Toy Example Enclave');
+  console.log(`Toy Example Enclave v${versionInfo.version}`);
   console.log('='.repeat(60));
   console.log(`Server running on port ${config.port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Version: ${versionInfo.version} (${versionInfo.gitShaShort})`);
+  console.log(`Build time: ${versionInfo.buildTime}`);
+  console.log(`Environment: ${versionInfo.environment}`);
   console.log(`Mock API URL: ${config.mockApiUrl}`);
   console.log('');
   console.log('Endpoints:');
   console.log(`  GET  /health        - Health check`);
+  console.log(`  GET  /version       - Version and build metadata`);
   console.log(`  GET  /watch-history - Fetch watch history (SAFE)`);
   console.log(`  POST /signup        - Record signup`);
   console.log(`  GET  /signup-count  - Get signed count`);

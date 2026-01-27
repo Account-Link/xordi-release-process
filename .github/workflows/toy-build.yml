@@ -1,9 +1,11 @@
 # Toy Example App - Build Workflow
 #
 # Builds and pushes Docker images for both mock-api and enclave.
-# Triggered on pushes to main and tags for releases.
+# Triggered on:
+#   - Pushes to main and feat/toy-example-app branches
+#   - Version tags (v*) for automatic deployment to prod7 and prod9
 #
-# Images are pushed to GHCR with commit SHA tags for traceability.
+# Images are pushed to GHCR with commit SHA and version tags for traceability.
 
 name: Build Toy Example
 
@@ -13,8 +15,10 @@ on:
     paths:
       - 'toy-example-app/**'
       - '.github/workflows/toy-build.yml'
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   pull_request:
-    branches: [main]
+    branches: [main, feat/toy-example-app]
     paths:
       - 'toy-example-app/**'
   workflow_dispatch:
@@ -97,6 +101,8 @@ jobs:
     outputs:
       image_digest: ${{ steps.build.outputs.digest }}
       sha_short: ${{ steps.vars.outputs.sha_short }}
+      version: ${{ steps.vars.outputs.version }}
+      is_release: ${{ steps.vars.outputs.is_release }}
 
     steps:
       - name: Checkout repository
@@ -110,6 +116,16 @@ jobs:
           echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/${OWNER_LC}/toy-example-enclave" >> $GITHUB_OUTPUT
+
+          # Extract version from tag if present (e.g., v1.2.0 -> 1.2.0)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -131,10 +147,16 @@ jobs:
           tags: |
             ${{ steps.vars.outputs.image }}:latest
             ${{ steps.vars.outputs.image }}:${{ steps.vars.outputs.sha_short }}
+            ${{ steps.vars.outputs.is_release == 'true' && format('{0}:{1}', steps.vars.outputs.image, steps.vars.outputs.version) || '' }}
+          build-args: |
+            BUILD_SHA=${{ steps.vars.outputs.sha_full }}
+            BUILD_TIME=${{ steps.vars.outputs.timestamp }}
+            ENVIRONMENT=${{ steps.vars.outputs.is_release == 'true' && 'production' || 'staging' }}
           labels: |
             org.opencontainers.image.source=${{ github.repositoryUrl }}
             org.opencontainers.image.revision=${{ steps.vars.outputs.sha_full }}
             org.opencontainers.image.created=${{ steps.vars.outputs.timestamp }}
+            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
           cache-from: type=gha,scope=enclave
           cache-to: type=gha,mode=max,scope=enclave
 
@@ -209,6 +231,8 @@ jobs:
     if: always()
     outputs:
       sha_short: ${{ needs.build-enclave.outputs.sha_short }}
+      version: ${{ needs.build-enclave.outputs.version }}
+      is_release: ${{ needs.build-enclave.outputs.is_release }}
       all_success: ${{ needs.build-mock-api.result == 'success' && needs.build-enclave.result == 'success' && needs.verify-code.result == 'success' }}
 
     steps:
@@ -380,4 +404,156 @@ jobs:
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Image | \`${{ steps.vars.outputs.enclave_image }}:${{ needs.build-enclave.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Compose Hash | \`${{ steps.hash.outputs.compose_hash }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Time | ${{ steps.deploy.outputs.deployment_time }} |" >> $GITHUB_STEP_SUMMARY
+
+  # Multi-machine release deployment (triggered by version tags)
+  deploy-release:
+    runs-on: ubuntu-latest
+    needs: [summary, build-enclave]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.summary.outputs.all_success == 'true'
+    environment: production
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        cluster: [prod9, prod7]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set variables
+        id: vars
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "enclave_image=ghcr.io/${OWNER_LC}/toy-example-enclave" >> $GITHUB_OUTPUT
+          echo "version=${{ needs.summary.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Update docker-compose with image and cluster
+        run: |
+          cd toy-example-app/enclave
+
+          # Update image tag
+          sed -i "s|image:.*toy-example-enclave.*|image: ${{ steps.vars.outputs.enclave_image }}:${{ needs.build-enclave.outputs.sha_short }}|g" docker-compose.yml
+
+          # Update cluster
+          sed -i "s|cluster:.*|cluster: ${{ matrix.cluster }}|g" docker-compose.yml
+
+          echo "Updated docker-compose.yml for ${{ matrix.cluster }}:"
+          cat docker-compose.yml
+
+      - name: Calculate compose hash
+        id: hash
+        run: |
+          HASH=$(sha256sum toy-example-app/enclave/docker-compose.yml | cut -d' ' -f1)
+          echo "compose_hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Phala CLI
+        run: npm install -g phala
+
+      - name: Deploy to ${{ matrix.cluster }}
+        id: deploy
+        env:
+          PHALA_CLOUD_API_KEY: ${{ secrets.PHALA_CLOUD_API_KEY }}
+          MOCK_API_URL: ${{ secrets.TOY_MOCK_API_URL }}
+          MOCK_API_TOKEN: ${{ secrets.TOY_MOCK_API_TOKEN }}
+          SIGNING_KEY: ${{ secrets.TOY_SIGNING_KEY }}
+          GHCR_USERNAME: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
+          PRIVATE_KEY: ${{ secrets.TOY_DEPLOYER_PRIVATE_KEY }}
+        run: |
+          cd toy-example-app/enclave
+
+          CVM_NAME="toy-example-${{ matrix.cluster }}"
+
+          # Delete existing CVM if it exists
+          echo "Cleaning up existing CVM..."
+          phala cvms delete "$CVM_NAME" --force 2>&1 || echo "No existing CVM to delete"
+          sleep 5
+
+          echo "Deploying to ${{ matrix.cluster }} with Base KMS..."
+
+          phala deploy \
+            -c docker-compose.yml \
+            -n "$CVM_NAME" \
+            --kms base \
+            --private-key "$PRIVATE_KEY" \
+            -e MOCK_API_URL="$MOCK_API_URL" \
+            -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
+            -e SIGNING_KEY="$SIGNING_KEY" \
+            -e ENVIRONMENT="${{ matrix.cluster }}" \
+            -e DSTACK_DOCKER_REGISTRY="ghcr.io" \
+            -e DSTACK_DOCKER_USERNAME="$GHCR_USERNAME" \
+            -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
+            2>&1 | tee deploy-${{ matrix.cluster }}.log
+
+          # Try to extract TX hash from deploy output
+          TX_HASH=$(grep -oE '0x[a-fA-F0-9]{64}' deploy-${{ matrix.cluster }}.log | head -1 || echo "pending")
+          echo "tx_hash=$TX_HASH" >> $GITHUB_OUTPUT
+          echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Update DEPLOYMENTS.md
+        run: |
+          DEPLOYMENTS_FILE="toy-example-app/DEPLOYMENTS.md"
+
+          # Create file if it doesn't exist
+          if [ ! -f "$DEPLOYMENTS_FILE" ]; then
+            cat > "$DEPLOYMENTS_FILE" << 'EOF'
+          # Deployment History
+
+          Auto-generated deployment log. Each entry represents a verified deployment to Phala Cloud with on-chain transparency logging via Base KMS.
+
+          | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
+          |-----------|---------|---------|--------------|-------------|--------|
+          EOF
+          fi
+
+          # Add new entry at the top of the table (after header)
+          TX_LINK="[View](https://basescan.org/tx/${{ steps.deploy.outputs.tx_hash }})"
+          if [ "${{ steps.deploy.outputs.tx_hash }}" = "pending" ]; then
+            TX_LINK="pending"
+          fi
+
+          NEW_ENTRY="| ${{ steps.vars.outputs.timestamp }} | ${{ steps.vars.outputs.version }} | ${{ matrix.cluster }} | \`${{ steps.hash.outputs.compose_hash }}\` | $TX_LINK | Active |"
+
+          # Insert after the header row (line 7)
+          sed -i "7a $NEW_ENTRY" "$DEPLOYMENTS_FILE"
+
+      - name: Commit DEPLOYMENTS.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add toy-example-app/DEPLOYMENTS.md
+          git commit -m "chore: record ${{ matrix.cluster }} deployment v${{ steps.vars.outputs.version }}
+
+          Machine: ${{ matrix.cluster }}
+          Version: ${{ steps.vars.outputs.version }}
+          Compose Hash: ${{ steps.hash.outputs.compose_hash }}
+
+          Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>" || echo "No changes to commit"
+          git push origin HEAD:feat/toy-example-app || echo "Push failed - may need manual sync"
+
+      - name: Record release deployment
+        run: |
+          echo "## Release Deployment - ${{ matrix.cluster }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.vars.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cluster | ${{ matrix.cluster }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${{ steps.vars.outputs.enclave_image }}:${{ needs.build-enclave.outputs.sha_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compose Hash | \`${{ steps.hash.outputs.compose_hash }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| On-Chain TX | ${{ steps.deploy.outputs.tx_hash }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deploy Time | ${{ steps.deploy.outputs.deployment_time }} |" >> $GITHUB_STEP_SUMMARY
