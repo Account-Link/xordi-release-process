@@ -538,13 +538,27 @@ jobs:
           echo "tx_hash=$TX_HASH" >> $GITHUB_OUTPUT
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
-      - name: Export outputs for consolidation
-        id: output
+      - name: Save deployment info for consolidation
         run: |
-          # Export outputs with cluster-specific names for the consolidation job
-          echo "${{ matrix.cluster }}_tx=${{ steps.deploy.outputs.tx_hash }}" >> $GITHUB_OUTPUT
-          echo "${{ matrix.cluster }}_hash=${{ steps.hash.outputs.compose_hash }}" >> $GITHUB_OUTPUT
-          echo "${{ matrix.cluster }}_time=${{ steps.vars.outputs.timestamp }}" >> $GITHUB_OUTPUT
+          # Write deployment info to a file for artifact upload
+          mkdir -p deploy-info
+          cat > deploy-info/${{ matrix.cluster }}.json <<EOF
+          {
+            "cluster": "${{ matrix.cluster }}",
+            "tx_hash": "${{ steps.deploy.outputs.tx_hash }}",
+            "compose_hash": "${{ steps.hash.outputs.compose_hash }}",
+            "timestamp": "${{ steps.vars.outputs.timestamp }}",
+            "version": "${{ steps.vars.outputs.version }}"
+          }
+          EOF
+          cat deploy-info/${{ matrix.cluster }}.json
+
+      - name: Upload deployment info
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-info-${{ matrix.cluster }}
+          path: deploy-info/${{ matrix.cluster }}.json
+          retention-days: 7
 
       - name: Record release deployment
         run: |
@@ -585,6 +599,18 @@ jobs:
           echo "version=${{ needs.summary.outputs.version }}" >> $GITHUB_OUTPUT
           echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
+      - name: Download deployment artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-info-*
+          path: deploy-artifacts
+          merge-multiple: false
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find deploy-artifacts -type f -name "*.json" -exec cat {} \;
+
       - name: Update DEPLOYMENTS.md
         run: |
           # Use absolute paths to avoid directory navigation issues
@@ -617,9 +643,22 @@ jobs:
 
           # Add entries for each cluster - same hash proves identical code
           for CLUSTER in prod5 prod9; do
-            # For now, use pending for TX since we can't easily pass matrix outputs
-            # The on-chain TX can be verified via the contract directly
-            TX_LINK="pending"
+            # Read TX hash from artifact if available
+            ARTIFACT_FILE="${ROOT_DIR}/deploy-artifacts/deploy-info-${CLUSTER}/${CLUSTER}.json"
+            if [ -f "$ARTIFACT_FILE" ]; then
+              TX_HASH=$(jq -r '.tx_hash // "pending"' "$ARTIFACT_FILE")
+              echo "Found TX hash for ${CLUSTER}: ${TX_HASH}"
+            else
+              TX_HASH="pending"
+              echo "No artifact found for ${CLUSTER}, using pending"
+            fi
+
+            # Format TX as link if it's a valid hash
+            if [[ "$TX_HASH" =~ ^0x[a-fA-F0-9]{64}$ ]]; then
+              TX_LINK="[View](https://basescan.org/tx/${TX_HASH})"
+            else
+              TX_LINK="pending"
+            fi
 
             NEW_ENTRY="| ${TIMESTAMP} | ${VERSION} | ${CLUSTER} | \`${HASH}\` | ${TX_LINK} | Active |"
 
