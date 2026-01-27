@@ -6,6 +6,8 @@ Auto-generated deployment log. Each entry represents a verified deployment to Ph
 
 | Timestamp | Version | Machine | Compose Hash | On-Chain TX | Status |
 |-----------|---------|---------|--------------|-------------|--------|
+| 2026-01-27T19:34:06Z | 1.2.7 | prod9 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | pending | Active |
+| 2026-01-27T19:34:06Z | 1.2.7 | prod5 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | pending | Active |
 | 2026-01-27T19:31:37Z | 1.2.6 | prod9 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | pending | Active |
 | 2026-01-27T19:31:37Z | 1.2.6 | prod5 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | pending | Active |
 | 2026-01-27T19:28:29Z | 1.2.5 | prod9 | `60a2d52f2bfb198c7948044b783f0f249b180a32d833ac62b373eab71781fa1a` | pending | Active |
