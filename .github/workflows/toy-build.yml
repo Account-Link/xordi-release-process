@@ -425,6 +425,7 @@ jobs:
           - cluster: prod9
             node_id_secret: TOY_NODE_ID_PROD9
       fail-fast: false
+      max-parallel: 1  # Deploy sequentially to avoid race conditions
 
     outputs:
       prod5_tx: ${{ steps.output.outputs.prod5_tx }}
@@ -506,17 +507,15 @@ jobs:
             NODE_ID="$NODE_ID_PROD9"
           fi
 
-          # Generate cluster-specific custom app ID
-          CUSTOM_APP_ID=$(echo -n "${{ matrix.cluster }}" | sha256sum | cut -c1-40)
-
           # Use --cvm-id to upgrade existing CVM, or create new if doesn't exist
           if [ "${{ steps.check_cvm.outputs.cvm_exists }}" = "true" ]; then
             echo "Upgrading existing CVM on ${{ matrix.cluster }}..."
             DEPLOY_ARGS="--cvm-id $CVM_NAME --wait"
           else
             echo "Creating new CVM on ${{ matrix.cluster }}..."
-            # Use custom-app-id + nonce to ensure unique app IDs per cluster
-            DEPLOY_ARGS="-n $CVM_NAME --node-id $NODE_ID --custom-app-id $CUSTOM_APP_ID --nonce ${{ matrix.cluster }}"
+            # Note: --custom-app-id and --nonce only work with PHALA KMS, not Base KMS
+            # Each deployment will get its own app_id from Base KMS
+            DEPLOY_ARGS="-n $CVM_NAME --node-id $NODE_ID"
           fi
 
           # Deploy/upgrade with Base KMS for on-chain transparency logging
