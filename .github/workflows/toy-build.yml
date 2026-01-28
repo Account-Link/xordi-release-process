@@ -533,8 +533,9 @@ jobs:
             -e DSTACK_DOCKER_PASSWORD="$GHCR_TOKEN" \
             2>&1 | tee deploy-${{ matrix.cluster }}.log
 
-          # Try to extract TX hash from deploy output
-          TX_HASH=$(grep -oE '0x[a-fA-F0-9]{64}' deploy-${{ matrix.cluster }}.log | head -1 || echo "pending")
+          # Extract the actual transactionHash from the Phala Cloud CLI output
+          # The CLI outputs JSON with multiple hex fields - we need transactionHash specifically, not blockHash
+          TX_HASH=$(grep "transactionHash:" deploy-${{ matrix.cluster }}.log | grep -oE "0x[a-fA-F0-9]{64}" | head -1 || echo "pending")
           echo "tx_hash=$TX_HASH" >> $GITHUB_OUTPUT
           echo "deployment_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 

@@ -27,6 +27,12 @@ Auto-generated deployment log. Each entry represents a verified deployment to Ph
 | 2026-01-27T17:31:20Z | 1.2.0 | prod7 | `4480ff7213388d73b2236108b512bc3f0a2cd55f28555693f87aea5ad512a270` | [View](https://basescan.org/tx/0x02f9011082210502830f4240836f0fe88303e53e942f83172a49584c017f2b25) | Active |
 | 2026-01-27T17:31:20Z | 1.2.0 | prod9 | `5b36e4872c39728ae875d1f086f8431161a5a9ee03591a262cd0cca1b2c3e024` | pending | Active |
 
+## Known Issue: Historical TX Hashes
+
+**Note (2026-01-28):** Entries prior to v1.2.12 have incorrect "On-Chain TX" values. The CI/CD pipeline was capturing `blockHash` instead of `transactionHash` from the Phala Cloud CLI output. These are valid block hashes on Base, but not the actual transaction hashes. This has been fixed for future deployments.
+
+To find the actual transaction for a historical deployment, search the Base KMS contract (`0x2f83172A49584C017F2B256F0FB2Dca14126Ba9C`) for transactions around the deployment timestamp.
+
 ## How to Read This Log
 
 - **Timestamp**: UTC time when deployment completed

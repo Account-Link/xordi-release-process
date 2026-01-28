@@ -1,6 +1,6 @@
 # Toy Example App
 
-**Status:** APPROVED
+**Status:** COMPLETE
 **Author:** LSDan
 **Created:** 2026-01-10
 **Last Updated:** 2026-01-10
@@ -313,20 +313,18 @@ Minimal persistent data:
 
 ## Traceability
 
-*To be filled during implementation*
-
 | Requirement | Implementation | Tests |
 |-------------|----------------|-------|
-| Mock API - watch_history | | |
-| Mock API - direct_messages | | |
-| Enclave - only safe calls | | |
-| Reproducible build | | |
-| CI/CD - build | | |
-| CI/CD - deploy | | |
-| Attestation metadata | | |
-| Signup count attestation | | |
-| Verification docs | | |
-| Tutorial docs | | |
+| Mock API - watch_history | `toy-example-app/mock-api/src/server.ts:14-26` | CI: toy-build.yml (build-mock-api job) |
+| Mock API - direct_messages | `toy-example-app/mock-api/src/server.ts:28-45` | CI: toy-build.yml (build-mock-api job) |
+| Enclave - only safe calls | `toy-example-app/enclave/src/tiktok-client.ts` | CI: verify-code job greps for direct_messages |
+| Reproducible build | `toy-example-app/enclave/Dockerfile`, `package-lock.json` | CI: image digest comparison |
+| CI/CD - build | `.github/workflows/toy-build.yml` (build-enclave, build-mock-api) | GitHub Actions run history |
+| CI/CD - deploy | `.github/workflows/toy-build.yml` (deploy, deploy-release) | `toy-example-app/DEPLOYMENTS.md` |
+| Attestation metadata | dstack native on port 8090 | `scripts/verify-attestation.sh` |
+| Signup count attestation | `toy-example-app/enclave/src/signup-counter.ts` | Manual: POST /signup, GET /signup-count |
+| Verification docs | `toy-example-app/docs/VERIFICATION.md` | N/A (documentation) |
+| Tutorial docs | `toy-example-app/docs/TUTORIAL.md` | N/A (documentation) |
 
 ## Changelog
 
@@ -337,3 +335,4 @@ Minimal persistent data:
 | 2026-01-10 | LSDan | Resolved mock API domain: release-process-mock.dstack.info |
 | 2026-01-10 | LSDan | Status changed to REVIEW |
 | 2026-01-10 | LSDan | Status changed to APPROVED |
+| 2026-01-28 | Claude | Filled traceability table, status changed to COMPLETE (11 versions deployed to prod5/prod9) |
