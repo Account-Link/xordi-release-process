@@ -14,26 +14,26 @@ Auto-generated deployment log. Each entry represents a verified deployment to Ph
 | 2026-01-27T22:13:17Z | 1.2.10 | prod5 | `933c4112f698dced8d1f1e9d895139f8beb28f280e112eb98e2b8cb1f4eb3b0a` | [View](https://basescan.org/tx/0x45a0c81e7a5f61efb2f07b945ab6938b729a60f796ab227774e13d1cc0e434a2) | Active |
 | 2026-01-27T19:57:10Z | 1.2.9 | prod9 | `714f18f783b42c59ef5d21a3c54ca4fddcfcb262235cff81e90a10d2811b7764` | [View](https://basescan.org/tx/0x1b26b6bd8298658cab34c670906857c610c06860d99e71d5ccfec2daf4ec8497) | Active |
 | 2026-01-27T19:57:10Z | 1.2.9 | prod5 | `714f18f783b42c59ef5d21a3c54ca4fddcfcb262235cff81e90a10d2811b7764` | [View](https://basescan.org/tx/0x8ab1b2b9afe67de5ac560e608e9dbbde19e7d86e886fb3d66e419f34b40affd9) | Active |
-| 2026-01-27T19:41:39Z | 1.2.8 | prod9 | `1c680f5aa342132d88d68286ef73fcc22fc2a19c36f7ca97ca084238f31c2004` | pending | Active |
-| 2026-01-27T19:41:39Z | 1.2.8 | prod5 | `1c680f5aa342132d88d68286ef73fcc22fc2a19c36f7ca97ca084238f31c2004` | pending | Active |
-| 2026-01-27T19:34:06Z | 1.2.7 | prod9 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | pending | Active |
-| 2026-01-27T19:34:06Z | 1.2.7 | prod5 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | pending | Active |
-| 2026-01-27T19:31:37Z | 1.2.6 | prod9 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | pending | Active |
-| 2026-01-27T19:31:37Z | 1.2.6 | prod5 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | pending | Active |
-| 2026-01-27T19:28:29Z | 1.2.5 | prod9 | `60a2d52f2bfb198c7948044b783f0f249b180a32d833ac62b373eab71781fa1a` | pending | Active |
-| 2026-01-27T19:28:29Z | 1.2.5 | prod5 | `60a2d52f2bfb198c7948044b783f0f249b180a32d833ac62b373eab71781fa1a` | pending | Active |
-| 2026-01-27T19:24:27Z | 1.2.4 | prod9 | `8e10856c16d9beb11668f810df1ff55cc0a49d0a7fff58b20f3328db8b0bc421` | pending | Active |
-| 2026-01-27T19:24:27Z | 1.2.4 | prod5 | `8e10856c16d9beb11668f810df1ff55cc0a49d0a7fff58b20f3328db8b0bc421` | pending | Active |
-| 2026-01-27T18:50:59Z | 1.2.3 | prod9 | `5d71f9f005a38088873df1cbf103bd159306d7806498e15990ac4dfad8746522` | pending | Active |
-| 2026-01-27T18:50:59Z | 1.2.3 | prod7 | `c186951cf1cf512088784a2b5f2450e2889b05de91d02b6a3a54c6b8bbeb6e20` | pending | Active |
-| 2026-01-27T17:31:20Z | 1.2.0 | prod7 | `4480ff7213388d73b2236108b512bc3f0a2cd55f28555693f87aea5ad512a270` | pending | Active |
-| 2026-01-27T17:31:20Z | 1.2.0 | prod9 | `5b36e4872c39728ae875d1f086f8431161a5a9ee03591a262cd0cca1b2c3e024` | pending | Active |
+| 2026-01-27T19:41:39Z | 1.2.8 | prod9 | `1c680f5aa342132d88d68286ef73fcc22fc2a19c36f7ca97ca084238f31c2004` | lost | Active |
+| 2026-01-27T19:41:39Z | 1.2.8 | prod5 | `1c680f5aa342132d88d68286ef73fcc22fc2a19c36f7ca97ca084238f31c2004` | lost | Active |
+| 2026-01-27T19:34:06Z | 1.2.7 | prod9 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | lost | Active |
+| 2026-01-27T19:34:06Z | 1.2.7 | prod5 | `7fcd5dc932172911357a2cd99bd8d7ac965cc04c0278422f75cd343be720a3e0` | lost | Active |
+| 2026-01-27T19:31:37Z | 1.2.6 | prod9 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | lost | Active |
+| 2026-01-27T19:31:37Z | 1.2.6 | prod5 | `13d16e8df8f68f71ff109ad5bfe7b43bee2335a1569d72d6de2a51a7d58e9344` | lost | Active |
+| 2026-01-27T19:28:29Z | 1.2.5 | prod9 | `60a2d52f2bfb198c7948044b783f0f249b180a32d833ac62b373eab71781fa1a` | lost | Active |
+| 2026-01-27T19:28:29Z | 1.2.5 | prod5 | `60a2d52f2bfb198c7948044b783f0f249b180a32d833ac62b373eab71781fa1a` | lost | Active |
+| 2026-01-27T19:24:27Z | 1.2.4 | prod9 | `8e10856c16d9beb11668f810df1ff55cc0a49d0a7fff58b20f3328db8b0bc421` | lost | Active |
+| 2026-01-27T19:24:27Z | 1.2.4 | prod5 | `8e10856c16d9beb11668f810df1ff55cc0a49d0a7fff58b20f3328db8b0bc421` | lost | Active |
+| 2026-01-27T18:50:59Z | 1.2.3 | prod9 | `5d71f9f005a38088873df1cbf103bd159306d7806498e15990ac4dfad8746522` | lost | Active |
+| 2026-01-27T18:50:59Z | 1.2.3 | prod7 | `c186951cf1cf512088784a2b5f2450e2889b05de91d02b6a3a54c6b8bbeb6e20` | lost | Active |
+| 2026-01-27T17:31:20Z | 1.2.0 | prod7 | `4480ff7213388d73b2236108b512bc3f0a2cd55f28555693f87aea5ad512a270` | lost | Active |
+| 2026-01-27T17:31:20Z | 1.2.0 | prod9 | `5b36e4872c39728ae875d1f086f8431161a5a9ee03591a262cd0cca1b2c3e024` | lost | Active |
 
 ## Known Issue: Historical TX Hashes
 
-**Note (2026-01-28):** Some entries for v1.2.4 through v1.2.8 show "pending" because the earlier CI/CD pipeline didn't successfully capture transaction hashes, or deployments to prod7 used a different contract. The TX hash extraction bug (capturing `blockHash` instead of `transactionHash`) has been fixed, and correct hashes have been retroactively recovered from on-chain logs where possible.
+**Note (2026-01-28):** Entries marked "lost" have unrecoverable TX hashes. The earlier CI/CD pipeline didn't successfully capture transaction hashes, or deployments to prod7 used a different contract not yet identified. The TX hash extraction bug (capturing `blockHash` instead of `transactionHash`) has been fixed for v1.2.12+, and correct hashes were retroactively recovered from on-chain logs for v1.2.9-v1.2.11.
 
-To find transactions for entries still marked "pending", query the app-specific contracts listed below for the deployment event topic `0xfecb34306dd9d8b785b54d65489d06afc8822a0893ddacedff40c50a4942d0af`.
+To attempt recovery for "lost" entries, query the app-specific contracts for the deployment event topic `0xfecb34306dd9d8b785b54d65489d06afc8822a0893ddacedff40c50a4942d0af`.
 
 ## How to Read This Log
 
@@ -41,7 +41,7 @@ To find transactions for entries still marked "pending", query the app-specific 
 - **Version**: Semantic version from `enclave/src/version.ts`
 - **Machine**: Phala Cloud cluster (prod7, prod9)
 - **Compose Hash**: SHA256 of `docker-compose.yml` - verifiable via attestation
-- **On-Chain TX**: Base transaction logging the compose hash
+- **On-Chain TX**: Base transaction logging the compose hash (`lost` = TX hash not captured or recoverable)
 - **Status**: `Active` (running), `Replaced` (superseded by newer version)
 
 ## Verification
