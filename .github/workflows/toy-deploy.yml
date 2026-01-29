@@ -128,7 +128,6 @@ jobs:
         env:
           MOCK_API_URL: ${{ secrets.TOY_MOCK_API_URL }}
           MOCK_API_TOKEN: ${{ secrets.TOY_MOCK_API_TOKEN }}
-          SIGNING_KEY: ${{ secrets.TOY_SIGNING_KEY }}
         run: |
           echo "Deploying enclave to Phala Cloud..."
 
@@ -145,7 +144,6 @@ jobs:
             -n toy-example-${{ inputs.environment }} \
             -e MOCK_API_URL="$MOCK_API_URL" \
             -e MOCK_API_TOKEN="$MOCK_API_TOKEN" \
-            -e SIGNING_KEY="$SIGNING_KEY" \
             2>&1 | tee deploy.log
 
           # Extract app info from deploy output

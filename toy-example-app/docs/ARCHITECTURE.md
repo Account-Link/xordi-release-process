@@ -2,9 +2,67 @@
 
 System design reference for the toy example TEE application.
 
+## Security Goal
+
+This application demonstrates **verifiable computation with audit trail**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SECURITY GOAL                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  An auditor can prove:                                       │
+│                                                              │
+│  1. WHAT CODE ran                                           │
+│     └─> compose hash in attestation (app-compose.json)       │
+│                                                              │
+│  2. HOW MANY USERS signed up                                │
+│     └─> audit log with TEE-signed entries (persistent)       │
+│                                                              │
+│  3. SIGNATURES ARE AUTHENTIC                                │
+│     └─> key derived in TEE, bound to compose hash            │
+│                                                              │
+│  4. ALL MACHINES RUN SAME CODE                              │
+│     └─> single AppID, same compose hash across devices       │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Protected User Interaction
+
+The `/signup` endpoint demonstrates a protected user interaction:
+
+```
+User                    Enclave (TEE)                 Audit Log
+  │                          │                            │
+  │──── POST /signup ────────>│                            │
+  │                          │                            │
+  │                          │── Derive signing key ──────>│
+  │                          │   (bound to compose hash)   │
+  │                          │                            │
+  │                          │── Sign audit entry ────────>│
+  │                          │   action=signup            │
+  │                          │   count=N                  │
+  │                          │   timestamp=T              │
+  │                          │   signature=S              │
+  │                          │                            │
+  │                          │── Persist to /data ────────>│
+  │                          │   (encrypted storage)       │
+  │                          │                            │
+  │<─── { count: N } ────────│                            │
+```
+
+**Security Property**: An auditor can verify:
+- The signature S was created by code with compose hash H
+- No external party could forge this signature
+- The count N is accurate (each entry is independently signed)
+- Data survives restarts (encrypted persistent storage)
+
 ## Overview
 
-This application demonstrates a secure API access pattern using Trusted Execution Environments (TEEs). The enclave receives credentials that could access sensitive data but is architecturally constrained to only access safe endpoints.
+This application demonstrates a secure API access pattern using Trusted Execution
+Environments (TEEs). The enclave receives credentials that could access sensitive
+data but is architecturally constrained to only access safe endpoints.
 
 ## System Diagram
 
@@ -16,15 +74,12 @@ This application demonstrates a secure API access pattern using Trusted Executio
 │   ┌──────────────────────┐         ┌──────────────────────────┐     │
 │   │    Mock TikTok API   │         │    Verifier / Auditor    │     │
 │   │                      │         │                          │     │
-│   │  release-process-    │         │  - Fetch attestation     │     │
-│   │  mock.dstack.info    │         │  - Compare compose hash  │     │
-│   │                      │         │  - Audit source code     │     │
-│   │  :3000               │         │  - Check Base contract   │     │
-│   │  /api/watch_history  │◄────────│                          │     │
-│   │  /api/direct_messages│         └──────────────────────────┘     │
-│   └──────────┬───────────┘                    │                      │
-│              │                                │                      │
-│              │ API calls                      │ Verify               │
+│   │  :3000               │         │  1. Fetch attestation    │     │
+│   │  /api/watch_history  │◄────────│  2. Verify compose hash  │     │
+│   │  /api/direct_messages│         │  3. Audit source code    │     │
+│   └──────────┬───────────┘         │  4. Verify signatures    │     │
+│              │                      │  5. Check audit log      │     │
+│              │ API calls            └──────────────────────────┘     │
 │              │ (only watch_history)           │                      │
 ├──────────────┼────────────────────────────────┼─────────────────────┤
 │              │      TRUST BOUNDARY (TCB)      │                      │
@@ -32,21 +87,44 @@ This application demonstrates a secure API access pattern using Trusted Executio
 │              ▼                                ▼                      │
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │                      dstack Enclave                          │   │
-│   │                    (Intel TDX, prod9)                        │   │
+│   │                    (Intel TDX)                               │   │
 │   │                                                              │   │
 │   │   ┌─────────────────────┐    ┌─────────────────────────┐    │   │
 │   │   │    Toy App          │    │   Metadata Service      │    │   │
 │   │   │    :8080            │    │   :8090 (dstack)        │    │   │
 │   │   │                     │    │                         │    │   │
-│   │   │  /health            │    │  /attestation           │    │   │
+│   │   │  /health            │    │  /info                  │    │   │
+│   │   │  /version           │    │  /attestation           │    │   │
 │   │   │  /watch-history     │    │  /compose-hash          │    │   │
 │   │   │  /signup            │    │  TDX Quote              │    │   │
 │   │   │  /signup-count      │    │                         │    │   │
+│   │   │  /audit-log         │    │                         │    │   │
 │   │   └─────────────────────┘    └─────────────────────────┘    │   │
+│   │              │                            │                  │   │
+│   │              │ derive key                 │                  │   │
+│   │              ▼                            │                  │   │
+│   │   ┌─────────────────────┐                │                  │   │
+│   │   │  TEE Key Derivation │◄───────────────┘                  │   │
+│   │   │  via dstack.sock    │  (bound to compose hash)          │   │
+│   │   │                     │                                   │   │
+│   │   │  signing_key =      │                                   │   │
+│   │   │  KDF(root, app_id)  │                                   │   │
+│   │   └─────────────────────┘                                   │   │
+│   │              │                                               │   │
+│   │              │ sign entries                                  │   │
+│   │              ▼                                               │   │
+│   │   ┌─────────────────────┐                                   │   │
+│   │   │  Encrypted Storage  │                                   │   │
+│   │   │  /data (LUKS)       │                                   │   │
+│   │   │                     │                                   │   │
+│   │   │  audit-log.json     │                                   │   │
+│   │   └─────────────────────┘                                   │   │
 │   │                                                              │   │
 │   │   Secrets (injected by dstack):                              │   │
 │   │   - MOCK_API_TOKEN (has full API access)                     │   │
-│   │   - SIGNING_KEY (for attestation signatures)                 │   │
+│   │                                                              │   │
+│   │   TEE-Derived (NOT injected):                                │   │
+│   │   - SIGNING_KEY (derived from TEE persistent key)            │   │
 │   │                                                              │   │
 │   │   Code Constraint:                                           │   │
 │   │   - tiktok-client.ts only calls /api/watch_history          │   │
@@ -56,6 +134,7 @@ This application demonstrates a secure API access pattern using Trusted Executio
 │   ┌─────────────────────────────────────────────────────────────┐   │
 │   │                      Base Contract                           │   │
 │   │                                                              │   │
+│   │   - Single AppID for all devices (prod5, prod9)             │   │
 │   │   - Logs every compose hash update                           │   │
 │   │   - Permanent on-chain record                                │   │
 │   │   - Enables retrospective audit                              │   │
@@ -77,7 +156,8 @@ An external service simulating a third-party API with both safe and sensitive en
 | `/api/watch_history` | SAFE | Returns viewing history |
 | `/api/direct_messages` | SENSITIVE | Returns private messages |
 
-Both endpoints use the same authentication token. The key point: credentials that access safe data can also access sensitive data.
+Both endpoints use the same authentication token. The key point: credentials that
+access safe data can also access sensitive data.
 
 ### TEE Enclave
 
@@ -89,10 +169,13 @@ The application running inside Intel TDX hardware isolation.
 
 ```
 enclave/src/
-├── index.ts           # HTTP server, routes
+├── index.ts           # HTTP server, routes, startup
 ├── config.ts          # Environment configuration
 ├── tiktok-client.ts   # API client (ONLY external calls)
-└── signup-counter.ts  # Signed counter for attestation
+├── signup-counter.ts  # Signup logic with TEE signatures
+├── audit-storage.ts   # Persistent encrypted audit log
+├── tee-keys.ts        # TEE key derivation via dstack
+└── version.ts         # Build metadata
 ```
 
 #### Key Constraint
@@ -101,35 +184,70 @@ enclave/src/
 - `getWatchHistory()` - Calls `/api/watch_history`
 - **Nothing else** - No function to call `/api/direct_messages`
 
-This is the security guarantee. The enclave has credentials that COULD access DMs, but the code to do so doesn't exist.
+This is the security guarantee. The enclave has credentials that COULD access DMs,
+but the code to do so doesn't exist.
+
+#### TEE Key Derivation
+
+`tee-keys.ts` derives the signing key from TEE persistent key:
+
+```typescript
+import { DstackClient } from '@phala/dstack-sdk';
+
+const client = new DstackClient();
+const keyResponse = await client.getKey('signing', 'hmac-signing');
+// Key is deterministic, bound to app identity (compose hash)
+```
+
+This key is:
+- **Deterministic**: Same app always gets same key
+- **Bound to compose hash**: Different code = different key
+- **Cannot be extracted**: Only accessible inside TEE
+- **Verifiable**: Auditors can verify signatures match compose hash
+
+#### Persistent Audit Log
+
+`audit-storage.ts` provides encrypted persistent storage:
+
+- Stores audit entries to `/data/audit-log.json`
+- `/data` is LUKS-encrypted by dstack
+- Keys derived from KMS, bound to app identity
+- **FAILS HARD** if storage not available (data integrity required)
 
 #### Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/health` | GET | Health check |
+| `/version` | GET | Build metadata + compose hash |
 | `/watch-history` | GET | Proxy to safe API |
-| `/signup` | POST | Increment counter |
-| `/signup-count` | GET | Get signed count |
+| `/signup` | POST | Record signup (TEE-signed, persistent) |
+| `/signup-count` | GET | Get signed count with TEE info |
+| `/audit-log` | GET | Full audit log for verification |
 
 ### Metadata Service (dstack)
 
 **Port:** 8090
 
 Provided by dstack, not our code. Exposes:
+- `/info` - Full app info including app-compose
 - `/attestation` - Full TDX attestation quote
-- `/compose-hash` - SHA256 of docker-compose.yml
+- `/compose-hash` - SHA256 of app-compose.json
 
-This enables verifiers to confirm what code is running.
+**Important**: The compose hash is over the full `app-compose.json`, not just
+docker-compose.yml. See [VERIFICATION.md](VERIFICATION.md) for details.
 
 ### Base Contract
 
-On-chain transparency log for compose hash updates. Every deployment logs:
-- Compose hash
-- Timestamp
-- App identifier
+On-chain transparency log. v2.0 uses **single AppID** for all devices:
 
-Enables retrospective audit: "What code was running on date X?"
+| Property | v1.x | v2.0 |
+|----------|------|------|
+| AppIDs | Separate per machine | Single unified |
+| Devices | 1 per AppID | Multiple per AppID |
+| Contract | 2 contracts | 1 contract |
+
+Registry: `0x2f83172A49584C017F2B256F0FB2Dca14126Ba9C`
 
 ## Data Flow
 
@@ -161,34 +279,77 @@ User Request
    Response to User
 ```
 
+### Signup with Audit Trail
+
+```
+User Request: POST /signup
+    │
+    ▼
+┌─────────────────┐
+│ Enclave :8080   │
+│ /signup         │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ tee-keys.ts     │
+│ getSigningKey() │
+└────────┬────────┘
+         │
+         │ via /var/run/dstack.sock
+         ▼
+┌─────────────────┐
+│ dstack KMS      │
+│ derive key      │
+│ (compose-bound) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ signup-counter  │
+│ sign entry      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ audit-storage   │
+│ persist to /data│
+│ (encrypted)     │
+└────────┬────────┘
+         │
+         ▼
+   { count, signature }
+```
+
 ### Verification Flow
 
 ```
-Verifier
+Auditor
     │
-    ├──────────────────────────┐
-    │                          │
-    ▼                          ▼
-┌─────────────────┐    ┌─────────────────┐
-│ Enclave :8090   │    │ Git Repository  │
-│ /compose-hash   │    │ docker-compose  │
-└────────┬────────┘    └────────┬────────┘
-         │                      │
-         │                      │
-         ▼                      ▼
-    Hash from TEE        Hash from Source
-         │                      │
-         └──────────┬───────────┘
+    ├──────────────────────────┬──────────────────────────┐
+    │                          │                          │
+    ▼                          ▼                          ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ Enclave :8090   │    │ Enclave :8080   │    │ Git Repository  │
+│ /compose-hash   │    │ /audit-log      │    │ app-compose     │
+└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+         │                      │                      │
+         │                      │                      │
+         ▼                      ▼                      ▼
+    Hash from TEE         Signed Entries         Hash from Source
+         │                      │                      │
+         └──────────┬───────────┴──────────────────────┘
                     │
                     ▼
-              Compare Hashes
+              Verify:
+              1. compose hash matches source
+              2. signatures valid for compose hash
+              3. count progression is continuous
+              4. both devices have same hash
                     │
               ┌─────┴─────┐
               │           │
-           Match      Mismatch
-              │           │
-              ▼           ▼
-          VERIFIED    ALERT!
+           VERIFIED    ALERT!
 ```
 
 ## Security Model
@@ -213,7 +374,11 @@ Everything else is untrusted:
 | Malicious code change | Compose hash changes, logged on-chain |
 | Developer steals DMs | Code audit proves no DM access |
 | Operator steals secrets | TEE hardware isolation |
+| Operator forges signatures | Signing key derived in TEE, not injected |
 | Man-in-the-middle | TLS + attestation verification |
+| Replay old signatures | Signatures bound to compose hash |
+| Fake audit counts | Each entry independently signed |
+| Data loss on restart | Persistent encrypted storage |
 
 ### What We Don't Protect Against
 
@@ -227,7 +392,7 @@ Everything else is untrusted:
 ### CI/CD Flow
 
 ```
-Git Push
+Git Push (version tag)
     │
     ▼
 ┌─────────────────┐
@@ -235,34 +400,43 @@ Git Push
 │ toy-build.yml   │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│ Build Image     │
-│ Tag with SHA    │
-└────────┬────────┘
+         ├─────────────────────────────────┐
+         │                                 │
+         ▼                                 ▼
+┌─────────────────┐              ┌─────────────────┐
+│ Build Image     │              │ Archive         │
+│ Tag with SHA    │              │ app-compose.json│
+└────────┬────────┘              └─────────────────┘
          │
          ▼
 ┌─────────────────┐
 │ Push to GHCR    │
 └────────┬────────┘
          │
-         │ (Manual trigger)
          ▼
 ┌─────────────────┐
-│ toy-deploy.yml  │
-│ Update compose  │
+│ Deploy prod9    │
+│ (creates AppID) │
+└────────┬────────┘
+         │
+         │ APP_ID, CONTRACT
+         ▼
+┌─────────────────┐
+│ addDevice()     │
+│ (add prod5)     │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Phala CLI       │
-│ cvms upgrade    │
+│ Deploy prod5    │
+│ (same AppID)    │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │ Base Contract   │
-│ Log new hash    │
+│ Single AppID    │
+│ 2 deviceIDs     │
 └─────────────────┘
 ```
 
@@ -272,8 +446,10 @@ Git Push
 |----------|-------------|-------------|
 | `MOCK_API_URL` | Mock API endpoint | dstack secrets |
 | `MOCK_API_TOKEN` | API authentication | dstack secrets |
-| `SIGNING_KEY` | Counter signing key | dstack secrets |
 | `PORT` | Server port | docker-compose |
+
+**Note**: `SIGNING_KEY` is no longer an environment variable. The signing key
+is derived from TEE persistent key via `@phala/dstack-sdk`. See `tee-keys.ts`.
 
 ## Future Considerations
 
@@ -291,3 +467,4 @@ Git Push
 - Implement consent language served from TEE
 - Add database with encrypted storage
 - Build verification tooling UI
+- Add rollback protection with monotonic counters

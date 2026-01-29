@@ -1,5 +1,8 @@
 // Configuration for the TEE Enclave application
 // Environment variables are injected by dstack at runtime
+//
+// NOTE: Signing key is now derived from TEE persistent key, not passed via env.
+// See tee-keys.ts for key derivation logic.
 
 export interface Config {
   // Server configuration
@@ -8,9 +11,6 @@ export interface Config {
   // Mock TikTok API configuration
   mockApiUrl: string;
   mockApiToken: string;
-
-  // Signing key for attestation (in production, derived from TEE)
-  signingKey: string;
 }
 
 function getEnvOrDefault(key: string, defaultValue: string): string {
@@ -40,9 +40,6 @@ export function loadConfig(): Config {
     mockApiToken: isDev
       ? getEnvOrDefault('MOCK_API_TOKEN', 'demo-token-12345')
       : getEnvOrThrow('MOCK_API_TOKEN'),
-
-    // Signing key - in production this would be derived from TEE attestation
-    signingKey: getEnvOrDefault('SIGNING_KEY', 'dev-signing-key-not-for-production'),
   };
 }
 

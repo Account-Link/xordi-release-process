@@ -16,15 +16,17 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # dstack socket for TEE attestation
+      # dstack socket for TEE attestation and key derivation
       - /var/run/dstack.sock:/var/run/dstack.sock
+      # Encrypted persistent storage for audit log
+      # dstack provides LUKS-encrypted volumes with keys derived from KMS
+      - /data:/data
     environment:
       - NODE_ENV=production
       - PORT=8080
       # These are injected via CLI -e flags or secrets
       - MOCK_API_URL=${MOCK_API_URL}
       - MOCK_API_TOKEN=${MOCK_API_TOKEN}
-      - SIGNING_KEY=${SIGNING_KEY}
     restart: unless-stopped
     logging:
       driver: "json-file"

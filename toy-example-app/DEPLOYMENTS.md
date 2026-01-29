@@ -39,10 +39,12 @@ To attempt recovery for "lost" entries, query the app-specific contracts for the
 
 - **Timestamp**: UTC time when deployment completed
 - **Version**: Semantic version from `enclave/src/version.ts`
-- **Machine**: Phala Cloud cluster (prod7, prod9)
-- **Compose Hash**: SHA256 of `docker-compose.yml` - verifiable via attestation
+- **Machine**: Phala Cloud cluster (prod5, prod9)
+- **Compose Hash**: SHA256 of `app-compose.json` structure - verifiable via attestation
 - **On-Chain TX**: Base transaction logging the compose hash (`lost` = TX hash not captured or recoverable)
 - **Status**: `Active` (running), `Replaced` (superseded by newer version)
+
+**Note on Compose Hash (v2.0+)**: The hash is computed over the full `app-compose.json` structure, not just `docker-compose.yml`. This includes `docker_compose_file`, `manifest_version`, `kms_enabled`, and other deployment metadata. See `docs/VERIFICATION.md` for reconstruction details.
 
 ## Verification
 
